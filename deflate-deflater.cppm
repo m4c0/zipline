@@ -20,7 +20,9 @@ class deflater {
   bitstream *m_bits{};
   symbols::huff_tables m_tables{};
   buffer m_buffer{};
+  unsigned m_len{};
   bool m_last_block{};
+  bool m_uncompressed{};
 
 public:
   explicit constexpr deflater() = default;
@@ -33,24 +35,37 @@ public:
 
     m_last_block = m_bits->next<1>() == 1;
     switch (auto d = m_bits->next<2>()) {
-    case 1:
-    case 2:
-      if (d == 2) {
-        auto fmt = details::read_hc_format(m_bits);
-        auto lens = details::read_hclens(m_bits, fmt);
-        auto hlit_hdist = details::read_hlit_hdist(fmt, lens, m_bits);
-        m_tables = symbols::create_tables(hlit_hdist, fmt.hlit);
-      } else {
-        m_tables = symbols::create_fixed_huffman_table();
-      }
+    case 0:
+      m_bits->align();
+      m_len = m_bits->next<8>() + (m_bits->next<8>() << 8);
+      m_bits->skip<16>(); // NLEN
+      m_uncompressed = true;
       break;
+    case 1:
+      m_tables = symbols::create_fixed_huffman_table();
+      m_uncompressed = false;
+      break;
+    case 2: {
+      auto fmt = details::read_hc_format(m_bits);
+      auto lens = details::read_hclens(m_bits, fmt);
+      auto hlit_hdist = details::read_hlit_hdist(fmt, lens, m_bits);
+      m_tables = symbols::create_tables(hlit_hdist, fmt.hlit);
+      m_uncompressed = false;
+      break;
+    }
     default:
-      // TODO: support "no compression"
       throw unsupported_huffman_encoding();
     }
   }
 
   [[nodiscard]] constexpr std::optional<uint8_t> next() {
+    if (m_uncompressed) {
+      if (m_len == 0) {
+        return {};
+      }
+      m_len--;
+      return m_bits->next<8>();
+    }
     if (m_buffer.empty()) {
       auto sym = symbols::read_next_symbol(m_tables, m_bits);
       if (!std::visit(m_buffer, sym)) {
@@ -104,4 +119,15 @@ static_assert([] {
   ce_bitstream b{real_zip_block_example};
   d.set_next_block(&b);
   return d.next() == '#' && d.next() == 'i' && d.next() == 'n';
+}());
+static_assert([] {
+  return true;
+  ce_bitstream b{yoyo::ce_reader{
+      0,     // Last bit + Uncompressed
+      2, 0,  // LEN
+      0, 0,  // NLEN
+      93, 15 // DATA
+  }};
+  zipline::deflater d{&b};
+  return d.next() == 93 && d.next() == 15 && !d.next();
 }());
