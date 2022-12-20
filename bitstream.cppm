@@ -19,10 +19,7 @@ class bitstream {
   unsigned m_rem{};
   unsigned m_buf{};
 
-public:
-  explicit constexpr bitstream(yoyo::reader *r) : m_reader{r} {}
-
-  [[nodiscard]] constexpr auto next(unsigned n) {
+  [[nodiscard]] constexpr auto next_tiny(unsigned n) {
     assert(n <= max_bits_at_once);
 
     if (m_rem < n) {
@@ -38,6 +35,9 @@ public:
     m_buf >>= n;
     return res;
   }
+
+public:
+  explicit constexpr bitstream(yoyo::reader *r) : m_reader{r} {}
 
   template <size_t N>
     requires(N <= max_bits_at_once)
@@ -63,6 +63,18 @@ public:
       rem -= max_bits_at_once;
     }
     auto r = next<N % max_bits_at_once>();
+  }
+
+  [[nodiscard]] constexpr unsigned next(unsigned n) {
+    assert(n <= sizeof(unsigned) * bits_per_byte);
+
+    unsigned res = 0;
+    while (n > 0) {
+      auto bits = n > 8 ? 8 : n;
+      res = (res << 8) + next_tiny(bits);
+      n -= bits;
+    }
+    return res;
   }
 
   [[nodiscard]] constexpr auto eof() const noexcept {
@@ -126,7 +138,6 @@ static_assert([] {
   return b.next<5>() == 17; // NOLINT
 }());
 static_assert([] {
-  constexpr const yoyo::ce_reader data{0x8d, 0x52, 0x4d};
   constexpr const auto bits_to_skip = 1 + 2 + 5 + 5 + 4;
   auto r = data;
   bitstream b{&r};
@@ -137,4 +148,18 @@ static_assert([] {
   auto r = data;
   bitstream b{&r};
   return b.next(1) == 1 && b.next(2) == 2 && b.next(5) == 17;
+}());
+static_assert([] {
+  constexpr const yoyo::ce_reader data{0xA0, 0x5A, 0x05};
+  auto r = data;
+  bitstream b{&r};
+  b.skip<4>();
+  return b.next(8) == 0xAA;
+}());
+static_assert([] {
+  constexpr const yoyo::ce_reader data{0xA0, 0x5A, 0x05};
+  auto r = data;
+  bitstream b{&r};
+  b.skip<4>();
+  return b.next(16) == 0xAA55;
 }());
