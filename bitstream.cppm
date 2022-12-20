@@ -42,6 +42,11 @@ class bitstream {
 public:
   explicit constexpr bitstream(yoyo::reader *r) : m_reader{r} {}
 
+  constexpr void align() noexcept {
+    if (m_rem > 0)
+      auto discard = next_tiny(m_rem);
+  }
+
   template <size_t N>
     requires(N <= max_bits_at_once)
   [[nodiscard]] constexpr auto next() {
@@ -157,7 +162,7 @@ static_assert([] {
   auto r = data;
   bitstream b{&r};
   b.skip<4>();
-  return b.next(8) == 0xAA;
+  return b.next(8) == 0xAA && b.next(8) == 0x55;
 }());
 static_assert([] {
   constexpr const yoyo::ce_reader data{0xA0, 0x5A, 0x05};
@@ -165,4 +170,12 @@ static_assert([] {
   bitstream b{&r};
   b.skip<4>();
   return b.next(16) == 0xAA55;
+}());
+static_assert([] {
+  auto r = data;
+  bitstream b{&r};
+  b.skip<4>();
+  b.align();
+  b.align(); // Should NOT skip another byte
+  return b.next<8>() == 0x52;
 }());
