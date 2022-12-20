@@ -108,6 +108,25 @@ create_tables(const LenDistBits &hlist_hdist, unsigned hlist_len) {
       .hdist = create_huffman_codes(sp.subspan(hlist_len)),
   };
 }
+static constexpr const auto fixed_hlist = [] {
+  std::array<unsigned, 288> res{};
+  std::fill(&res.at(0), &res.at(144), 8);
+  std::fill(&res.at(144), &res.at(256), 9);
+  std::fill(&res.at(256), &res.at(280), 7);
+  std::fill(&res.at(280), res.end(), 8);
+  return res;
+}();
+static constexpr const auto fixed_hdist = [] {
+  std::array<unsigned, 32> res{};
+  std::fill(res.begin(), res.end(), 5);
+  return res;
+}();
+static constexpr auto create_fixed_huffman_table() {
+  return huff_tables{
+      .hlist = create_huffman_codes(fixed_hlist),
+      .hdist = create_huffman_codes(fixed_hdist),
+  };
+}
 
 static constexpr bool operator==(const raw &s, const raw &r) {
   return s.c == r.c;
@@ -187,3 +206,18 @@ static_assert([] {
     return false;
   return true;
 }());
+
+static_assert(create_fixed_huffman_table().hlist.counts[0] == 0);
+static_assert(create_fixed_huffman_table().hlist.counts[7] == 24);
+static_assert(create_fixed_huffman_table().hlist.counts[8] == 144 + 8);
+static_assert(create_fixed_huffman_table().hlist.counts[9] == 112);
+static constexpr auto test_fixed_table(uint8_t first_byte, symbol expected) {
+  auto bits = zipline::ce_bitstream{yoyo::ce_reader{first_byte, 0, 0}};
+  auto sym = read_next_symbol(create_fixed_huffman_table(), &bits);
+  return sym == expected;
+}
+static_assert(test_fixed_table(0b01001100, raw{2}));
+static_assert(test_fixed_table(0b10010011, raw{146}));
+static_assert(test_fixed_table(0b0000000, end{}));           // 256
+static_assert(test_fixed_table(0b0100000, repeat{4, 1}));    // 258
+static_assert(test_fixed_table(0b01000011, repeat{163, 1})); // 282

@@ -13,18 +13,23 @@ import bitstream;
 import yoyo;
 
 namespace zipline {
-export class deflate_reader : public yoyo::reader {
+class huffman_reader : public yoyo::reader {
   bitstream *m_bits;
   symbols::huff_tables m_tables;
   buffer m_buffer{};
   bool m_finished{};
 
 public:
-  constexpr explicit deflate_reader(bitstream *bits) : m_bits{bits} {
-    auto fmt = details::read_hc_format(bits);
-    auto lens = details::read_hclens(bits, fmt);
-    auto hlit_hdist = details::read_hlit_hdist(fmt, lens, bits);
-    m_tables = symbols::create_tables(hlit_hdist, fmt.hlit);
+  constexpr explicit huffman_reader(bitstream *bits, bool dynamic)
+      : m_bits{bits} {
+    if (dynamic) {
+      auto fmt = details::read_hc_format(bits);
+      auto lens = details::read_hclens(bits, fmt);
+      auto hlit_hdist = details::read_hlit_hdist(fmt, lens, bits);
+      m_tables = symbols::create_tables(hlit_hdist, fmt.hlit);
+    } else {
+      m_tables = symbols::create_fixed_huffman_table();
+    }
   }
 
   [[nodiscard]] constexpr bool eof() const override {
@@ -125,12 +130,11 @@ static_assert([]() {
 
   using namespace zipline;
 
-  constexpr const auto fmt_offset = 3; // last block + dynamic
-
   ce_bitstream b{ex1};
-  b.skip<fmt_offset>();
+  b.skip<1>(); // "last block" bit
+  b.skip<2>(); // "format" bit
 
-  deflate_reader r{&b};
+  huffman_reader r{&b, true};
 
   constexpr const std::string_view expected =
       R"CPP(#include "m4c0/ark/zip.eocd.hpp"
