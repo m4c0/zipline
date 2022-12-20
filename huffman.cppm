@@ -10,7 +10,9 @@ import containers;
 import yoyo;
 
 export namespace zipline {
-struct invalid_huffman_code : std::exception {};
+struct invalid_huffman_code : std::runtime_error {
+  invalid_huffman_code() : runtime_error("Invalid huffman code") {}
+};
 
 struct huffman_codes {
   // Counts per bit length

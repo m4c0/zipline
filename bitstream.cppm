@@ -8,7 +8,10 @@ export module bitstream;
 import yoyo;
 
 export namespace zipline {
-struct truncated_stream : std::exception {};
+struct truncated_stream : std::runtime_error {
+  truncated_stream()
+      : runtime_error("Attempt to read past end of bit stream") {}
+};
 
 class bitstream {
   static constexpr const auto max_bits_at_once = 8;

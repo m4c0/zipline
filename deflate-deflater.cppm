@@ -11,7 +11,10 @@ import bitstream;
 import yoyo;
 
 namespace zipline {
-class unsupported_huffman_encoding : public std::exception {};
+struct unsupported_huffman_encoding : std::runtime_error {
+  unsupported_huffman_encoding()
+      : runtime_error("Unsupported deflate algorithm") {}
+};
 
 class deflater {
   bitstream *m_bits{};

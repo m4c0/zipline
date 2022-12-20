@@ -9,7 +9,9 @@ export module containers;
 // Copied from my "STL" repo. Can be replaced by C++23's constexpr
 // unique_ptr<T[]>
 export namespace containers {
-class out_of_bounds : public std::exception {};
+struct out_of_bounds : std::runtime_error {
+  out_of_bounds() : runtime_error("Attempt at read past of bounded array") {}
+};
 
 // constexpr variant of STL's
 template <typename Tp> class unique_array {
