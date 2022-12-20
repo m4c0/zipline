@@ -15,6 +15,7 @@ auto zipline() {
   d->add_part("symbols");
   d->add_part("buffer");
   d->add_part("details");
+  d->add_part("deflater");
 
   auto z = all->add_unit<mod>("zipline");
   z->add_part("common");

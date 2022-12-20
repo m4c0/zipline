@@ -6,34 +6,22 @@ module;
 #include <variant>
 
 export module deflate;
-import :buffer;
-import :details;
-import :symbols;
+import :deflater;
 import bitstream;
 import yoyo;
 
 namespace zipline {
 class huffman_reader : public yoyo::reader {
   bitstream *m_bits;
-  symbols::huff_tables m_tables;
-  buffer m_buffer{};
+  deflater m_d;
   bool m_finished{};
 
 public:
-  constexpr explicit huffman_reader(bitstream *bits, bool dynamic)
-      : m_bits{bits} {
-    if (dynamic) {
-      auto fmt = details::read_hc_format(bits);
-      auto lens = details::read_hclens(bits, fmt);
-      auto hlit_hdist = details::read_hlit_hdist(fmt, lens, bits);
-      m_tables = symbols::create_tables(hlit_hdist, fmt.hlit);
-    } else {
-      m_tables = symbols::create_fixed_huffman_table();
-    }
-  }
+  constexpr explicit huffman_reader(bitstream *bits)
+      : m_bits{bits}, m_d{bits} {}
 
   [[nodiscard]] constexpr bool eof() const override {
-    return m_bits->eof() || m_finished;
+    return m_d.last_block() && m_finished;
   }
   [[nodiscard]] constexpr bool seekg(int /*pos*/,
                                      yoyo::seek_mode /*mode*/) override {
@@ -55,14 +43,15 @@ public:
   }
 
   [[nodiscard]] constexpr std::optional<uint8_t> read_u8() override {
-    if (m_buffer.empty()) {
-      auto sym = symbols::read_next_symbol(m_tables, m_bits);
-      if (!std::visit(m_buffer, sym)) {
-        m_finished = true;
-        return {};
-      }
+    auto r = m_d.next();
+    if (r)
+      return r;
+    if (m_d.last_block()) {
+      m_finished = true;
+      return {};
     }
-    return {m_buffer.read()};
+    m_d.set_next_block(m_bits);
+    return m_d.next();
   }
 
   [[nodiscard]] constexpr std::optional<uint16_t> read_u16() override {
@@ -90,6 +79,7 @@ public:
     return {(static_cast<unsigned>(*a) << bits_per_word) | *b};
   }
 };
+export class deflater;
 } // namespace zipline
 
 static_assert([]() {
@@ -131,10 +121,7 @@ static_assert([]() {
   using namespace zipline;
 
   ce_bitstream b{ex1};
-  b.skip<1>(); // "last block" bit
-  b.skip<2>(); // "format" bit
-
-  huffman_reader r{&b, true};
+  huffman_reader r{&b};
 
   constexpr const std::string_view expected =
       R"CPP(#include "m4c0/ark/zip.eocd.hpp"
