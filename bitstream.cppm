@@ -133,3 +133,8 @@ static_assert([] {
   b.skip<bits_to_skip>();
   return b.next<3>() == 6 && b.next<3>() == 4; // NOLINT
 }());
+static_assert([] {
+  auto r = data;
+  bitstream b{&r};
+  return b.next(1) == 1 && b.next(2) == 2 && b.next(5) == 17;
+}());
