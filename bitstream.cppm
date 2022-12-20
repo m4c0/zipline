@@ -77,10 +77,12 @@ public:
     assert(n <= sizeof(unsigned) * bits_per_byte);
 
     unsigned res = 0;
+    unsigned shift = 0;
     while (n > 0) {
-      auto bits = n > 8 ? 8 : n;
-      res = (res << 8) + next_tiny(bits);
+      auto bits = n > bits_per_byte ? bits_per_byte : n;
+      res |= next_tiny(bits) << shift;
       n -= bits;
+      shift += bits_per_byte;
     }
     return res;
   }
@@ -169,7 +171,7 @@ static_assert([] {
   auto r = data;
   bitstream b{&r};
   b.skip<4>();
-  return b.next(16) == 0xAA55;
+  return b.next(16) == 0x55AA;
 }());
 static_assert([] {
   auto r = data;
