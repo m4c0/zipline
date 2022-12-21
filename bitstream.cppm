@@ -167,11 +167,11 @@ static_assert([] {
   return b.next(8) == 0xAA && b.next(8) == 0x55;
 }());
 static_assert([] {
-  constexpr const yoyo::ce_reader data{0xA0, 0x5A, 0x05};
+  constexpr const yoyo::ce_reader data{0x40, 0x23, 0x01};
   auto r = data;
   bitstream b{&r};
   b.skip<4>();
-  return b.next(16) == 0x55AA;
+  return b.next(16) == 0x1234;
 }());
 static_assert([] {
   auto r = data;
