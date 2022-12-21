@@ -121,7 +121,6 @@ static_assert([] {
   return d.next() == '#' && d.next() == 'i' && d.next() == 'n';
 }());
 static_assert([] {
-  return true;
   ce_bitstream b{yoyo::ce_reader{
       0,     // Last bit + Uncompressed
       2, 0,  // LEN
