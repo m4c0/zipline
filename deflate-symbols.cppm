@@ -1,5 +1,6 @@
 module;
 #include <array>
+#include <cassert>
 #include <optional>
 #include <span>
 #include <variant>
@@ -28,8 +29,8 @@ static constexpr bool operator==(const bit_pair &s, const bit_pair &r) {
   return s.bits == r.bits && s.second == r.second;
 }
 
+constexpr const auto max_lens_code = 285U;
 static constexpr const auto bitlens = [] {
-  constexpr const auto max_lens_code = 285U;
   constexpr const auto first_parametric_code = 261U;
   constexpr const auto min_lens_code = 257U;
 
@@ -46,18 +47,23 @@ static constexpr const auto bitlens = [] {
   res[max_lens_code] = {0, 258};
   return res;
 }();
+static_assert(bitlens[257] == bit_pair{0, 3});   // NOLINT
 static_assert(bitlens[258] == bit_pair{0, 4});   // NOLINT
+static_assert(bitlens[259] == bit_pair{0, 5});   // NOLINT
+static_assert(bitlens[260] == bit_pair{0, 6});   // NOLINT
+static_assert(bitlens[261] == bit_pair{0, 7});   // NOLINT
+static_assert(bitlens[264] == bit_pair{0, 10});  // NOLINT
 static_assert(bitlens[280] == bit_pair{4, 115}); // NOLINT
 static_assert(bitlens[281] == bit_pair{5, 131}); // NOLINT
 static_assert(bitlens[284] == bit_pair{5, 227}); // NOLINT
 static_assert(bitlens[285] == bit_pair{0, 258}); // NOLINT
 
+constexpr const auto max_dists_code = 29U;
 static constexpr const auto bitdists = [] {
-  constexpr const auto last = 29;
-  std::array<bit_pair, last + 1> res{};
+  std::array<bit_pair, max_dists_code + 1> res{};
   res[0] = {0, 1};
   res[1] = {0, 2};
-  for (auto i = 2U; i <= last; i++) {
+  for (auto i = 2U; i <= max_dists_code; i++) {
     const auto bits = (i - 2U) / 2U;
     res[i] = {bits, res[i - 1].second + (1U << res[i - 1].bits)};
   }
@@ -76,6 +82,22 @@ struct huff_tables {
   huffman_codes hlist;
   huffman_codes hdist;
 };
+[[nodiscard]] static constexpr auto read_fixed_dist(bitstream *bits) {
+  return (bits->next<1>() << 4) | (bits->next<1>() << 3) |
+         (bits->next<1>() << 2) | (bits->next<1>() << 1) | bits->next<1>();
+}
+static constexpr void test_read_fixed_dist(unsigned input, unsigned expected) {
+  ce_bitstream b{yoyo::ce_reader{input}};
+  assert(read_fixed_dist(&b) == expected);
+}
+static_assert([] { test_read_fixed_dist(0b00000, 0); });
+static_assert([] { test_read_fixed_dist(0b10000, 16); });
+static_assert([] { test_read_fixed_dist(0b1000, 8); });
+static_assert([] { test_read_fixed_dist(0b100, 4); });
+static_assert([] { test_read_fixed_dist(0b10, 2); });
+static_assert([] { test_read_fixed_dist(0b1, 1); });
+static_assert([] { test_read_fixed_dist(0b11111, 31); });
+
 [[nodiscard]] static constexpr symbol read_next_symbol(const huff_tables &huff,
                                                        bitstream *bits) {
   constexpr const auto end_code = 256;
@@ -85,13 +107,15 @@ struct huff_tables {
     return raw{static_cast<uint8_t>(code)};
   if (code == end_code)
     return end{};
+  assert(code <= max_lens_code);
 
   const auto len_bits = bitlens[code];
   const auto len = len_bits.second + bits->next(len_bits.bits);
 
   const auto dist_code = (huff.hdist.counts.size() > 0)
                              ? decode_huffman(huff.hdist, bits)
-                             : bits->next<5>();
+                             : read_fixed_dist(bits);
+  assert(dist_code <= max_dists_code);
 
   const auto dist_bits = bitdists[dist_code];
   const auto dist = dist_bits.second + bits->next(dist_bits.bits);
@@ -197,5 +221,5 @@ static constexpr auto test_fixed_table(uint8_t first_byte, symbol expected) {
 static_assert(test_fixed_table(0b01001100, raw{2}));
 static_assert(test_fixed_table(0b10010011, raw{146}));
 static_assert(test_fixed_table(0b0000000, end{}));           // 256
-static_assert(test_fixed_table(0b10100000, repeat{4, 2}));   // 258
+static_assert(test_fixed_table(0b10100000, repeat{4, 257})); // 258, dist=16,0
 static_assert(test_fixed_table(0b01000011, repeat{163, 1})); // 282

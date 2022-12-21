@@ -1,5 +1,6 @@
 module;
 #include <array>
+#include <cassert>
 #include <optional>
 #include <span>
 
@@ -34,7 +35,7 @@ public:
     m_bits = b;
 
     m_last_block = m_bits->next<1>() == 1;
-    switch (auto d = m_bits->next<2>()) {
+    switch (m_bits->next<2>()) {
     case 0:
       m_bits->align();
       m_len = m_bits->next<8>() + (m_bits->next<8>() << 8);
@@ -122,11 +123,37 @@ static_assert([] {
 }());
 static_assert([] {
   ce_bitstream b{yoyo::ce_reader{
-      0,     // Last bit + Uncompressed
+      1,     // Last bit + Uncompressed
       2, 0,  // LEN
       0, 0,  // NLEN
       93, 15 // DATA
   }};
   zipline::deflater d{&b};
   return d.next() == 93 && d.next() == 15 && !d.next();
+}());
+static_assert([] {
+  // Tests with fixed huffman table
+  // H = 00110000 + 01001000 = 01111000
+  ce_bitstream b1{yoyo::ce_reader{0b11110011, 0, 0}};
+  zipline::deflater d{&b1};
+  assert(d.next() == 'H');
+  assert(!d.next());
+
+  // E = 00110000 + 01000101 = 01110101
+  // Y = 00110000 + 01011001 = 10001001
+  ce_bitstream b2{yoyo::ce_reader{0b01110011, 0b10001101, 0b100, 0}};
+  d.set_next_block(&b2);
+  assert(d.next() == 'E');
+  assert(d.next() == 'Y');
+  assert(!d.next());
+
+  // repeat{3, 3} = {257, 2} = {0000001, 00010}
+  ce_bitstream b3{yoyo::ce_reader{0b00000011, 0b0100010, 0}};
+  d.set_next_block(&b3);
+  assert(d.next() == 'H');
+  assert(d.next() == 'E');
+  assert(d.next() == 'Y');
+  assert(!d.next());
+
+  return true;
 }());
