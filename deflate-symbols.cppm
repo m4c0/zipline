@@ -27,7 +27,7 @@ struct bit_pair {
 
 static constexpr const auto max_lens_code = 285;
 static constexpr const auto min_lens_code = 257;
-[[nodiscard]] static constexpr auto build_lens_arrays() noexcept {
+static constexpr const auto lens = [] {
   constexpr const auto last = max_lens_code - min_lens_code;
   std::array<unsigned, last + 1> res{};
   for (auto i = 0U; i < 4; i++) {
@@ -41,7 +41,7 @@ static constexpr const auto min_lens_code = 257;
     res.at(i + 3) = res.at(i + 2) + (1U << bits);
   }
   return res;
-}
+}();
 [[nodiscard]] static constexpr auto bitlen_for_code(unsigned code) {
   constexpr const auto last_pair = bit_pair{0, 258};
   if (code == max_lens_code)
@@ -51,11 +51,11 @@ static constexpr const auto min_lens_code = 257;
   if (index < 4)
     return bit_pair{0, index + 3};
 
-  constexpr const auto lens = build_lens_arrays();
   const auto bits = (index - 4U) / 4U;
   return bit_pair{bits, lens.at(index)};
 }
-[[nodiscard]] static constexpr auto build_dist_arrays() noexcept {
+
+static constexpr const auto dists = [] {
   constexpr const auto last = 29;
   std::array<unsigned, last + 1> res{};
   res[2] = 3;
@@ -66,9 +66,8 @@ static constexpr const auto min_lens_code = 257;
     res.at(i + 1) = res.at(i) + (1U << bits);
   }
   return res;
-}
+}();
 [[nodiscard]] static constexpr auto bitdist_for_code(unsigned code) noexcept {
-  constexpr const auto dists = build_dist_arrays();
   if (code < 2)
     return bit_pair{code, code + 1};
   const auto bits = (code - 2U) / 2U;
