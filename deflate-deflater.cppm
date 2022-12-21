@@ -19,7 +19,7 @@ struct unsupported_huffman_encoding : std::runtime_error {
 class deflater {
   bitstream *m_bits{};
   symbols::huff_tables m_tables{};
-  buffer m_buffer{};
+  buffer<> m_buffer{};
   unsigned m_len{};
   bool m_last_block{};
   bool m_uncompressed{};

@@ -1,14 +1,15 @@
 module;
 #include <array>
+#include <cassert>
 #include <optional>
 #include <string_view>
 
 export module deflate:buffer;
 import :symbols;
 
-export namespace zipline {
-class buffer {
-  static constexpr const auto buf_size = 32768;
+namespace zipline {
+constexpr const auto max_repeat_jump = 32768;
+template <unsigned buf_size = max_repeat_jump * 2> class buffer {
 
   std::array<uint8_t, buf_size> m_buf{};
   unsigned m_rd{};
@@ -56,7 +57,8 @@ static constexpr auto visit(const symbols::symbol &s) noexcept {
 static_assert(!visit(symbols::end{}));
 static_assert(visit(symbols::raw{'y'}));
 
-static constexpr auto visit_and_read(buffer &b, uint8_t c) {
+template <auto N>
+static constexpr auto visit_and_read(buffer<N> &b, uint8_t c) {
   if (!b(symbols::raw{c}))
     return false;
   if (b.empty())
@@ -65,7 +67,20 @@ static constexpr auto visit_and_read(buffer &b, uint8_t c) {
     return false;
   return b.empty();
 }
-static constexpr auto visit_and_read(buffer &b, std::string_view str,
+template <auto N>
+static constexpr void visit_and_read(buffer<N> &b, std::string_view str) {
+  for (uint8_t c : str)
+    assert(b(symbols::raw{c}));
+
+  assert(!b.empty());
+
+  for (auto c : str)
+    assert(b.read() == c);
+
+  assert(b.empty());
+}
+template <auto N>
+static constexpr auto visit_and_read(buffer<N> &b, std::string_view str,
                                      unsigned dist) {
   if (!b(symbols::repeat{static_cast<unsigned int>(str.length()), dist}))
     return false;
@@ -114,5 +129,16 @@ static_assert([] {
     return false;
   if (!visit_and_read(b, "test", 6))
     return false; // NOLINT
+  return true;
+}());
+static_assert([] {
+  buffer<4> b{};
+  visit_and_read(b, "aa");
+  // D.ABC -- We can write past overflows
+  visit_and_read(b, "bcd");
+  // DC.BC -- We can read past underflow
+  assert(visit_and_read(b, "c", 2));
+  // C.CCD -- We can read past underflow and back into overflow
+  assert(visit_and_read(b, "cdc", 3));
   return true;
 }());
