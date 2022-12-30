@@ -60,6 +60,7 @@ public:
   }
 
   [[nodiscard]] constexpr std::optional<uint8_t> next() {
+    assert(m_bits != nullptr);
     if (m_uncompressed) {
       if (m_len == 0) {
         return {};
@@ -70,6 +71,7 @@ public:
     if (m_buffer.empty()) {
       auto sym = symbols::read_next_symbol(m_tables, m_bits);
       if (!std::visit(m_buffer, sym)) {
+        m_bits = nullptr;
         return {};
       }
     }
