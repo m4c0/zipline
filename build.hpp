@@ -12,6 +12,7 @@ auto zipline() {
   all->add_unit<mod>("huffman");
 
   auto d = all->add_unit<mod>("deflate");
+  d->add_part("tables");
   d->add_part("symbols");
   d->add_part("buffer");
   d->add_part("details");

@@ -6,6 +6,7 @@ module;
 #include <variant>
 
 export module deflate:symbols;
+import :tables;
 import bitstream;
 import huffman;
 import yoyo;
@@ -21,67 +22,6 @@ struct repeat {
 struct end {};
 using symbol = std::variant<end, raw, repeat>;
 
-struct bit_pair {
-  unsigned bits;
-  unsigned second;
-};
-static constexpr bool operator==(const bit_pair &s, const bit_pair &r) {
-  return s.bits == r.bits && s.second == r.second;
-}
-
-constexpr const auto max_lens_code = 285U;
-static constexpr const auto bitlens = [] {
-  constexpr const auto first_parametric_code = 261U;
-  constexpr const auto min_lens_code = 257U;
-
-  std::array<bit_pair, max_lens_code + 1> res{};
-  for (auto i = min_lens_code; i < first_parametric_code; i++) {
-    res[i] = {0, i - min_lens_code + 3U};
-  }
-  for (auto i = first_parametric_code; i < max_lens_code; i++) {
-    const auto bits = (i - first_parametric_code) / 4U;
-    res[i] = {bits, res[i - 1].second + (1U << res[i - 1].bits)};
-  }
-
-  // For some reason, this does not follow the pattern
-  res[max_lens_code] = {0, 258};
-  return res;
-}();
-static_assert(bitlens[257] == bit_pair{0, 3});   // NOLINT
-static_assert(bitlens[258] == bit_pair{0, 4});   // NOLINT
-static_assert(bitlens[259] == bit_pair{0, 5});   // NOLINT
-static_assert(bitlens[260] == bit_pair{0, 6});   // NOLINT
-static_assert(bitlens[261] == bit_pair{0, 7});   // NOLINT
-static_assert(bitlens[264] == bit_pair{0, 10});  // NOLINT
-static_assert(bitlens[280] == bit_pair{4, 115}); // NOLINT
-static_assert(bitlens[281] == bit_pair{5, 131}); // NOLINT
-static_assert(bitlens[284] == bit_pair{5, 227}); // NOLINT
-static_assert(bitlens[285] == bit_pair{0, 258}); // NOLINT
-
-constexpr const auto max_dists_code = 29U;
-static constexpr const auto bitdists = [] {
-  std::array<bit_pair, max_dists_code + 1> res{};
-  res[0] = {0, 1};
-  res[1] = {0, 2};
-  for (auto i = 2U; i <= max_dists_code; i++) {
-    const auto bits = (i - 2U) / 2U;
-    res[i] = {bits, res[i - 1].second + (1U << res[i - 1].bits)};
-  }
-  return res;
-}();
-static_assert(bitdists[0] == bit_pair{0, 1});       // NOLINT
-static_assert(bitdists[1] == bit_pair{0, 2});       // NOLINT
-static_assert(bitdists[2] == bit_pair{0, 3});       // NOLINT
-static_assert(bitdists[3] == bit_pair{0, 4});       // NOLINT
-static_assert(bitdists[4] == bit_pair{1, 5});       // NOLINT
-static_assert(bitdists[5] == bit_pair{1, 7});       // NOLINT
-static_assert(bitdists[6] == bit_pair{2, 9});       // NOLINT
-static_assert(bitdists[29] == bit_pair{13, 24577}); // NOLINT
-
-struct huff_tables {
-  huffman_codes hlist;
-  huffman_codes hdist;
-};
 [[nodiscard]] static constexpr auto read_fixed_dist(bitstream *bits) {
   return (bits->next<1>() << 4) | (bits->next<1>() << 3) |
          (bits->next<1>() << 2) | (bits->next<1>() << 1) | bits->next<1>();
@@ -98,8 +38,8 @@ static_assert([] { test_read_fixed_dist(0b10, 2); });
 static_assert([] { test_read_fixed_dist(0b1, 1); });
 static_assert([] { test_read_fixed_dist(0b11111, 31); });
 
-[[nodiscard]] static constexpr symbol read_next_symbol(const huff_tables &huff,
-                                                       bitstream *bits) {
+[[nodiscard]] static constexpr symbol
+read_next_symbol(const tables::huff_tables &huff, bitstream *bits) {
   constexpr const auto end_code = 256;
 
   const auto code = decode_huffman(huff.hlist, bits);
@@ -107,43 +47,19 @@ static_assert([] { test_read_fixed_dist(0b11111, 31); });
     return raw{static_cast<uint8_t>(code)};
   if (code == end_code)
     return end{};
-  assert(code <= max_lens_code);
+  assert(code <= tables::max_lens_code);
 
-  const auto len_bits = bitlens[code];
+  const auto len_bits = tables::bitlens[code];
   const auto len = len_bits.second + bits->next(len_bits.bits);
 
   const auto dist_code = (huff.hdist.counts.size() > 0)
                              ? decode_huffman(huff.hdist, bits)
                              : read_fixed_dist(bits);
-  assert(dist_code <= max_dists_code);
+  assert(dist_code <= tables::max_dists_code);
 
-  const auto dist_bits = bitdists[dist_code];
+  const auto dist_bits = tables::bitdists[dist_code];
   const auto dist = dist_bits.second + bits->next(dist_bits.bits);
   return repeat{len, dist};
-}
-
-export template <typename LenDistBits>
-[[nodiscard]] constexpr huff_tables
-create_tables(const LenDistBits &hlist_hdist, unsigned hlist_len) {
-  std::span sp{hlist_hdist.begin(), hlist_hdist.end()};
-  return huff_tables{
-      .hlist = create_huffman_codes(sp.subspan(0, hlist_len)),
-      .hdist = create_huffman_codes(sp.subspan(hlist_len)),
-  };
-}
-static constexpr const auto fixed_hlist = [] {
-  std::array<unsigned, 288> res{};
-  std::fill(&res.at(0), &res.at(144), 8);
-  std::fill(&res.at(144), &res.at(256), 9);
-  std::fill(&res.at(256), &res.at(280), 7);
-  std::fill(&res.at(280), res.end(), 8);
-  return res;
-}();
-static constexpr auto create_fixed_huffman_table() {
-  return huff_tables{
-      .hlist = create_huffman_codes(fixed_hlist),
-      .hdist = {},
-  };
 }
 
 static constexpr bool operator==(const raw &s, const raw &r) {
@@ -181,7 +97,7 @@ static constexpr auto build_sparse_huff() {
   constexpr const auto dist_counts =
       std::array<unsigned, 3>{0, 0, dist_indexes.size()};
 
-  return huff_tables{
+  return zipline::tables::huff_tables{
       .hlist = build_huffman_codes(lit_indexes, lit_counts),
       .hdist = build_huffman_codes(dist_indexes, dist_counts),
   };
@@ -195,27 +111,10 @@ static_assert(test_read_next_symbol(0b00, raw{'?'}));             // NOLINT
 static_assert(test_read_next_symbol(0b10, end{}));                // NOLINT
 static_assert(test_read_next_symbol(0b11100101, repeat{24, 12})); // NOLINT
 
-static_assert([] {
-  constexpr const auto data = std::array<unsigned, 5>{2, 2, 2, 1, 1};
-  const auto tables = create_tables(data, 3);
-  if (tables.hlist.counts[2] != 3)
-    return false;
-  if (tables.hlist.counts[1] != 0)
-    return false;
-  if (tables.hdist.counts.size() == 3)
-    return false;
-  if (tables.hdist.counts[1] != 2)
-    return false;
-  return true;
-}());
-
-static_assert(create_fixed_huffman_table().hlist.counts[0] == 0);
-static_assert(create_fixed_huffman_table().hlist.counts[7] == 24);
-static_assert(create_fixed_huffman_table().hlist.counts[8] == 144 + 8);
-static_assert(create_fixed_huffman_table().hlist.counts[9] == 112);
 static constexpr auto test_fixed_table(uint8_t first_byte, symbol expected) {
   auto bits = zipline::ce_bitstream{yoyo::ce_reader{first_byte, 0, 0}};
-  auto sym = read_next_symbol(create_fixed_huffman_table(), &bits);
+  auto sym =
+      read_next_symbol(zipline::tables::create_fixed_huffman_table(), &bits);
   return sym == expected;
 }
 static_assert(test_fixed_table(0b01001100, raw{2}));

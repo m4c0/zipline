@@ -50,18 +50,7 @@ public:
   template <size_t N>
     requires(N <= max_bits_at_once)
   [[nodiscard]] constexpr auto next() {
-    if (m_rem < N) {
-      auto next = m_reader->read_u8();
-      if (!next)
-        throw truncated_stream{};
-      m_buf = m_buf + (*next << m_rem);
-      m_rem += bits_per_byte;
-    }
-
-    auto res = m_buf & ((1U << N) - 1U);
-    m_rem -= N;
-    m_buf >>= N;
-    return res;
+    return next_tiny(N);
   }
 
   template <size_t N> constexpr void skip() {

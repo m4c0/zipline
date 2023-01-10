@@ -19,7 +19,7 @@ struct unsupported_huffman_encoding : std::runtime_error {
 
 class deflater {
   bitstream *m_bits{};
-  symbols::huff_tables m_tables{};
+  tables::huff_tables m_tables{};
   buffer<> m_buffer{};
   unsigned m_len{};
   bool m_last_block{};
@@ -43,14 +43,14 @@ public:
       m_uncompressed = true;
       break;
     case 1:
-      m_tables = symbols::create_fixed_huffman_table();
+      m_tables = tables::create_fixed_huffman_table();
       m_uncompressed = false;
       break;
     case 2: {
       auto fmt = details::read_hc_format(m_bits);
       auto lens = details::read_hclens(m_bits, fmt);
       auto hlit_hdist = details::read_hlit_hdist(fmt, lens, m_bits);
-      m_tables = symbols::create_tables(hlit_hdist, fmt.hlit);
+      m_tables = tables::create_tables(hlit_hdist, fmt.hlit);
       m_uncompressed = false;
       break;
     }
