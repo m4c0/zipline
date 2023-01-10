@@ -111,14 +111,18 @@ static_assert(test_read_next_symbol(0b00, raw{'?'}));             // NOLINT
 static_assert(test_read_next_symbol(0b10, end{}));                // NOLINT
 static_assert(test_read_next_symbol(0b11100101, repeat{24, 12})); // NOLINT
 
-static constexpr auto test_fixed_table(uint8_t first_byte, symbol expected) {
-  auto bits = zipline::ce_bitstream{yoyo::ce_reader{first_byte, 0, 0}};
+static constexpr auto test_fixed_table(uint8_t first_byte, uint8_t second_byte,
+                                       symbol expected) {
+  auto bits =
+      zipline::ce_bitstream{yoyo::ce_reader{first_byte, second_byte, 0}};
   auto sym =
       read_next_symbol(zipline::tables::create_fixed_huffman_table(), &bits);
   return sym == expected;
 }
-static_assert(test_fixed_table(0b01001100, raw{2}));
-static_assert(test_fixed_table(0b10010011, raw{146}));
-static_assert(test_fixed_table(0b0000000, end{}));           // 256
-static_assert(test_fixed_table(0b10100000, repeat{4, 257})); // 258, dist=16,0
-static_assert(test_fixed_table(0b01000011, repeat{163, 1})); // 282
+static_assert(test_fixed_table(0b01001100, 0, raw{2}));
+static_assert(test_fixed_table(0b10010011, 0, raw{146}));
+static_assert(test_fixed_table(0b0000000, 0, end{})); // 256
+static_assert(test_fixed_table(0b10100000, 0,
+                               repeat{4, 257})); // 258, dist=16,0
+static_assert(test_fixed_table(0b01000011, 0, repeat{163, 1})); // 282
+static_assert(test_fixed_table(0b01100000, 0b1000, repeat{5, 2}));
