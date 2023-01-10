@@ -26,17 +26,17 @@ using symbol = std::variant<end, raw, repeat>;
   return (bits->next<1>() << 4) | (bits->next<1>() << 3) |
          (bits->next<1>() << 2) | (bits->next<1>() << 1) | bits->next<1>();
 }
-static constexpr void test_read_fixed_dist(unsigned input, unsigned expected) {
+static constexpr bool test_read_fixed_dist(unsigned input, unsigned expected) {
   ce_bitstream b{yoyo::ce_reader{input}};
-  assert(read_fixed_dist(&b) == expected);
+  return read_fixed_dist(&b) == expected;
 }
-static_assert([] { test_read_fixed_dist(0b00000, 0); });
-static_assert([] { test_read_fixed_dist(0b10000, 16); });
-static_assert([] { test_read_fixed_dist(0b1000, 8); });
-static_assert([] { test_read_fixed_dist(0b100, 4); });
-static_assert([] { test_read_fixed_dist(0b10, 2); });
-static_assert([] { test_read_fixed_dist(0b1, 1); });
-static_assert([] { test_read_fixed_dist(0b11111, 31); });
+static_assert(test_read_fixed_dist(0b00000, 0));
+static_assert(test_read_fixed_dist(0b10000, 1));
+static_assert(test_read_fixed_dist(0b1000, 2));
+static_assert(test_read_fixed_dist(0b100, 4));
+static_assert(test_read_fixed_dist(0b10, 8));
+static_assert(test_read_fixed_dist(0b1, 16));
+static_assert(test_read_fixed_dist(0b11111, 31));
 
 [[nodiscard]] static constexpr symbol
 read_next_symbol(const tables::huff_tables &huff, bitstream *bits) {
