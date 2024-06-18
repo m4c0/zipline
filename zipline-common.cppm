@@ -44,10 +44,8 @@ struct local_directory_mismatch : zip_exception {};
 
 constexpr const auto maximum_supported_version = 20; // 2.0 - Deflate
 
-template <typename Exc, typename T> constexpr T unwrap(std::optional<T> v) {
-  if (!v)
-    throw Exc{};
-  return *v;
+template <typename Exc, typename T> constexpr T unwrap(mno::req<T> v) {
+  return v.take([](auto msg) { throw Exc{}; });
 }
 
 constexpr bool filename_matches(const cdir_entry &cd,

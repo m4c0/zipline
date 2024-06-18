@@ -47,18 +47,14 @@ export constexpr auto read_cd(yoyo::reader *r) {
   result.offset = unwrap<truncated_central_directory>(r->read_u32());
 
   result.filename = containers::unique_array<uint8_t>{filename_len};
-  if (!r->read(result.filename.begin(), filename_len)) {
-    throw truncated_central_directory{};
-  }
+  unwrap<truncated_central_directory>(
+      r->read(result.filename.begin(), filename_len));
 
   result.extra = containers::unique_array<uint8_t>{extra_len};
-  if (!r->read(result.extra.begin(), extra_len)) {
-    throw truncated_central_directory{};
-  }
+  unwrap<truncated_central_directory>(r->read(result.extra.begin(), extra_len));
 
-  if (!r->seekg(comment_len, yoyo::seek_mode::current)) {
-    throw truncated_central_directory{};
-  }
+  unwrap<truncated_central_directory>(
+      r->seekg(comment_len, yoyo::seek_mode::current));
 
   return result;
 }
@@ -107,5 +103,5 @@ static_assert([] {
     return false;
   if (!filename_matches(cd, filename))
     return false;
-  return r.eof();
+  return r.eof().unwrap(false);
 }());
