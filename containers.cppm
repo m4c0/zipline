@@ -1,7 +1,7 @@
 module;
 #include <algorithm>
 #include <cassert>
-#include <exception>
+#include <stdexcept>
 #include <utility>
 
 export module containers;
@@ -87,14 +87,14 @@ static constexpr auto algo_gen() noexcept {
   uaint res{3};
   std::generate(std::begin(res), std::end(res),
                 [i = 0]() mutable noexcept { return ++i; });
-  return std::move(res);
+  return res;
 }
 static constexpr auto idx_gen() noexcept {
   uaint res{3};
   res[0] = 1;
   res[1] = 2;
   res[2] = 3;
-  return std::move(res);
+  return res;
 }
 static constexpr auto equals(const uaint &a, const uaint &b) noexcept {
   return std::equal(a.begin(), a.end(), b.begin(), b.end());
