@@ -1,3 +1,5 @@
+#pragma leco tool
+
 #include <cassert>
 #include <iostream>
 #include <optional>
