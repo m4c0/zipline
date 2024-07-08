@@ -6,7 +6,7 @@ module;
 
 export module zipline:cdir;
 import :common;
-import containers;
+import hai;
 import yoyo;
 
 namespace zipline {
@@ -46,11 +46,11 @@ export constexpr auto read_cd(yoyo::reader *r) {
 
   result.offset = unwrap<truncated_central_directory>(r->read_u32());
 
-  result.filename = containers::unique_array<uint8_t>{filename_len};
+  result.filename = hai::array<uint8_t>{filename_len};
   unwrap<truncated_central_directory>(
       r->read(result.filename.begin(), filename_len));
 
-  result.extra = containers::unique_array<uint8_t>{extra_len};
+  result.extra = hai::array<uint8_t>{extra_len};
   unwrap<truncated_central_directory>(r->read(result.extra.begin(), extra_len));
 
   unwrap<truncated_central_directory>(

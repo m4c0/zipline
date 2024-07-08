@@ -6,7 +6,7 @@ module;
 #include <string_view>
 
 export module zipline:common;
-import containers;
+import hai;
 import yoyo;
 
 export namespace zipline {
@@ -22,8 +22,8 @@ struct cdir_entry {
   uint32_t compressed_size{};
   uint32_t uncompressed_size{};
   uint32_t offset{};
-  containers::unique_array<uint8_t> filename{};
-  containers::unique_array<uint8_t> extra{};
+  hai::array<uint8_t> filename{};
+  hai::array<uint8_t> extra{};
 };
 
 struct zip_exception : std::exception {};
