@@ -1,12 +1,7 @@
-module;
-#include <algorithm>
-#include <array>
-#include <optional>
-#include <string_view>
-
 export module zipline:cdir;
 import :common;
 import hai;
+import jute;
 import yoyo;
 
 namespace zipline {
@@ -85,23 +80,21 @@ static_assert([] {
   constexpr const auto crc = 0xba4c06baU;
   constexpr const auto offset = 0x42;
   constexpr const auto extra_size = 0x18;
-  constexpr const std::string_view filename{"zip.eocd.cpp"};
+  constexpr const jute::view filename = "zip.eocd.cpp";
+
+  constexpr const auto assert = [](auto res, auto exp) {
+    if (res != exp)
+      throw 0;
+  };
 
   auto r = cd_data;
   auto cd = read_cd(&r);
-  if (cd.compressed_size != comp_size)
-    return false;
-  if (cd.uncompressed_size != uncomp_size)
-    return false;
-  if (cd.crc != crc)
-    return false;
-  if (cd.offset != offset)
-    return false;
-  if (cd.filename.size() != filename.size())
-    return false;
-  if (cd.extra.size() != extra_size)
-    return false;
+  assert(cd.compressed_size, comp_size);
+  assert(cd.uncompressed_size, uncomp_size);
+  assert(cd.crc, crc);
+  assert(cd.offset, offset);
+  assert(cd.extra.size(), extra_size);
   if (!filename_matches(cd, filename))
-    return false;
+    throw 0;
   return r.eof().unwrap(false);
 }());

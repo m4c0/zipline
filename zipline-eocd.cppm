@@ -1,27 +1,21 @@
-module;
-#include <array>
-#include <cstdint>
-#include <exception>
-#include <optional>
-
 export module zipline:eocd;
 import :common;
+import traits;
 import yoyo;
+
+using namespace traits::ints;
 
 namespace zipline {
 static constexpr const uint32_t eocd_magic_number = 0x06054b50; // PK\5\6
 
 static constexpr void find_eocd_start(yoyo::reader *r) {
   constexpr const auto eocd_len = 22;
-  if (!r->seekg(-eocd_len, yoyo::seek_mode::end)) {
-    throw missing_eocd_error{};
-  }
+  unwrap<missing_eocd_error>(r->seekg(-eocd_len, yoyo::seek_mode::end));
 
   constexpr const int sizeof_u32 = sizeof(uint32_t);
   while (r->read_u32() != eocd_magic_number) {
-    if (!r->seekg(-sizeof_u32 - 1, yoyo::seek_mode::current)) {
-      throw missing_eocd_error{};
-    }
+    unwrap<missing_eocd_error>(
+        r->seekg(-sizeof_u32 - 1, yoyo::seek_mode::current));
   }
 }
 

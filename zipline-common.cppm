@@ -1,13 +1,10 @@
-module;
-#include <algorithm>
-#include <cstdint>
-#include <exception>
-#include <optional>
-#include <string_view>
-
 export module zipline:common;
 import hai;
+import jute;
+import traits;
 import yoyo;
+
+using namespace traits::ints;
 
 export namespace zipline {
 struct cdir_meta {
@@ -26,21 +23,21 @@ struct cdir_entry {
   hai::array<uint8_t> extra{};
 };
 
-struct zip_exception : std::exception {};
+struct zip_exception {};
 
-struct missing_eocd_error : zip_exception {};
-struct truncated_eocd_error : zip_exception {};
-struct multidisk_is_unsupported : zip_exception {};
-struct zip64_is_unsupported : zip_exception {};
+struct missing_eocd_error {};
+struct truncated_eocd_error {};
+struct multidisk_is_unsupported {};
+struct zip64_is_unsupported {};
 
-struct invalid_central_directory : zip_exception {};
-struct truncated_central_directory : zip_exception {};
-struct unsupported_zip_version : zip_exception {};
+struct invalid_central_directory {};
+struct truncated_central_directory {};
+struct unsupported_zip_version {};
 
-struct invalid_file_offset : zip_exception {};
-struct invalid_local_directory : zip_exception {};
-struct truncated_local_directory : zip_exception {};
-struct local_directory_mismatch : zip_exception {};
+struct invalid_file_offset {};
+struct invalid_local_directory {};
+struct truncated_local_directory {};
+struct local_directory_mismatch {};
 
 constexpr const auto maximum_supported_version = 20; // 2.0 - Deflate
 
@@ -48,9 +45,13 @@ template <typename Exc, typename T> constexpr T unwrap(mno::req<T> v) {
   return v.take([](auto msg) { throw Exc{}; });
 }
 
-constexpr bool filename_matches(const cdir_entry &cd,
-                                std::string_view filename) {
-  return std::equal(filename.begin(), filename.end(), cd.filename.begin(),
-                    cd.filename.end());
+constexpr bool filename_matches(const cdir_entry &cd, jute::view fn) {
+  if (cd.filename.size() != fn.size())
+    return false;
+  for (auto i = 0; i < fn.size(); i++) {
+    if (cd.filename[i] != fn[i])
+      return false;
+  }
+  return true;
 }
 } // namespace zipline
