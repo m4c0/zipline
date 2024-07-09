@@ -7,28 +7,14 @@ import traits;
 import yoyo;
 
 namespace zipline {
-class zip_iterator {
-  yoyo::subreader m_reader{};
-
-  constexpr explicit zip_iterator(yoyo::subreader sr) : m_reader{sr} {}
-
-public:
-  constexpr zip_iterator() = default;
-
-  static constexpr auto from(yoyo::reader *r) {
-    auto eocd = read_eocd(r);
-    return yoyo::subreader::seek_and_create(r, eocd.offset, eocd.size)
-        .map([](auto sr) { return zip_iterator(sr); });
-  }
-
-  [[nodiscard]] constexpr auto reset() { return m_reader.seekg(0); }
-
-  [[nodiscard]] constexpr explicit operator bool() const {
-    return !m_reader.eof().unwrap(true);
-  }
-
-  [[nodiscard]] constexpr auto next() { return read_cd(&m_reader); }
-};
+constexpr auto list(yoyo::reader &r, auto &&fn) {
+  auto eocd = read_eocd(&r);
+  return yoyo::subreader::seek_and_create(&r, eocd.offset, eocd.size)
+      .fmap(yoyo::until_eof([&](auto &r) {
+        const auto &e = read_cd(&r);
+        return fn(e);
+      }));
+}
 } // namespace zipline
 
 static_assert([] {
@@ -95,16 +81,13 @@ static_assert([] {
 
   constexpr const auto crc = 0xba4c06baU;
 
-  constexpr const auto assert = [](jute::view file, auto exp_crc) {
-    return [=](auto &it) {
-      if (it.find(file).crc != exp_crc)
-        throw 0;
-    };
-  };
-
-  return zipline::zip_iterator::from(&zip)
-      .peek([](auto &it) {})
-      .peek(assert("zip.eocd.cpp", crc))
-      .map([](auto) { return true; })
+  bool found{};
+  return zipline::list(zip,
+                       [&](auto &entry) {
+                         if (entry.crc == crc)
+                           found = true;
+                         return mno::req<void>{};
+                       })
+      .map([&] { return found; })
       .unwrap(false);
 }());
