@@ -1,8 +1,3 @@
-module;
-#include <array>
-#include <exception>
-#include <optional>
-
 export module zipline:local;
 import :common;
 import yoyo;
