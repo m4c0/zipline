@@ -13,12 +13,10 @@ static constexpr mno::req<void> find_eocd_start(yoyo::reader *r) {
   return r->seekg(-eocd_len, yoyo::seek_mode::end)
       .fmap([&] {
         while (true) {
-          auto u32 = r->read_u32();
-          if (!u32.is_valid())
-            return u32.map([](auto) {});
-
-          if (u32.unwrap(0) == eocd_magic_number)
-            return mno::req<void>{};
+          auto b = r->read_u32().map(
+              [](auto u32) { return u32 == eocd_magic_number; });
+          if (!b.is_valid() || b == true)
+            return b.map([](auto) {});
 
           auto res = r->seekg(-sizeof(uint32_t) - 1, yoyo::seek_mode::current);
           if (!res.is_valid())
