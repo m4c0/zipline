@@ -26,19 +26,21 @@ static constexpr mno::req<void> find_eocd_start(yoyo::reader *r) {
       .trace("searching for end-of-central-directory");
 }
 
+static constexpr auto disk_no(yoyo::reader *r) {
+  return r->read_u16()
+      .assert([](auto u16) { return u16 != 0xFFFF; }, "zip64 is not supported")
+      .assert([](auto u16) { return u16 == 0; }, "multidisk is not supported");
+}
+static constexpr auto disk(yoyo::reader *r) {
+  return r->read_u16().assert([](auto u16) { return u16 == 0; },
+                              "multidisk is not supported");
+}
+
 export [[nodiscard]] constexpr auto read_eocd(yoyo::reader *r) {
   unwrap<missing_eocd_error>(find_eocd_start(r));
 
-  constexpr const uint16_t zip64_magic = 0xFFFF;
-  auto disk_no = unwrap<truncated_eocd_error>(r->read_u16());
-  if (disk_no == zip64_magic)
-    throw zip64_is_unsupported{};
-  if (disk_no != 0)
-    throw multidisk_is_unsupported{};
-
-  auto cdir_disk = unwrap<truncated_eocd_error>(r->read_u16());
-  if (cdir_disk != 0)
-    throw multidisk_is_unsupported{};
+  unwrap<truncated_eocd_error>(disk_no(r));
+  unwrap<truncated_eocd_error>(disk(r));
 
   auto cdir_count_disk = unwrap<truncated_eocd_error>(r->read_u16());
   auto cdir_total_count = unwrap<truncated_eocd_error>(r->read_u16());
