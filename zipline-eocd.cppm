@@ -9,7 +9,7 @@ namespace zipline {
 static constexpr const uint32_t eocd_magic_number = 0x06054b50; // PK\5\6
 static constexpr const auto eocd_len = 22;
 
-static constexpr mno::req<void> find_eocd_start(yoyo::reader *r) {
+static constexpr auto find_eocd_start(yoyo::reader *r) {
   return r->seekg(-eocd_len, yoyo::seek_mode::end)
       .until_failure(
           [&] {
@@ -23,42 +23,43 @@ static constexpr mno::req<void> find_eocd_start(yoyo::reader *r) {
             ;
           },
           [&](auto msg) { return msg != "\1"; })
+      .fmap([&] { return yoyo::subreader::create(r, eocd_len); })
       .trace("searching for end-of-central-directory");
 }
 
-static constexpr auto disk_no(yoyo::reader *r) {
-  return r->read_u16()
+static constexpr auto disk_no(yoyo::reader &r) {
+  return r.read_u16()
       .assert([](auto u16) { return u16 != 0xFFFF; }, "zip64 is not supported")
-      .assert([](auto u16) { return u16 == 0; }, "multidisk is not supported");
+      .assert([](auto u16) { return u16 == 0; }, "multidisk is not supported")
+      .map([](auto) {});
 }
-static constexpr auto disk(yoyo::reader *r) {
-  return r->read_u16().assert([](auto u16) { return u16 == 0; },
-                              "multidisk is not supported");
+static constexpr auto disk(yoyo::reader &r) {
+  return r.read_u16()
+      .assert([](auto u16) { return u16 == 0; }, "multidisk is not supported")
+      .map([](auto) {});
 }
-static constexpr auto total_count(yoyo::reader *r) {
-  return r->read_u16().fmap([&](auto disk_count) {
-    return r->read_u16().assert(
-        [&](auto total_count) { return total_count == disk_count; },
-        "multidisk is not supported");
-  });
+static constexpr auto total_count(uint16_t &count) {
+  return [&](yoyo::reader &r) {
+    return r.read_u16()
+        .fmap([&](auto disk_count) {
+          return r.read_u16().assert(
+              [&](auto total_count) { return total_count == disk_count; },
+              "multidisk is not supported");
+        })
+        .map([&](auto c) { count = c; });
+  };
 }
 
 export [[nodiscard]] constexpr auto read_eocd(yoyo::reader *r) {
-  unwrap<missing_eocd_error>(find_eocd_start(r));
+  cdir_meta res{};
 
-  unwrap<truncated_eocd_error>(disk_no(r));
-  unwrap<truncated_eocd_error>(disk(r));
-
-  auto cdir_total_count = unwrap<multidisk_is_unsupported>(total_count(r));
-
-  auto cdir_size = unwrap<truncated_eocd_error>(r->read_u32());
-  auto cdir_offset = unwrap<truncated_eocd_error>(r->read_u32());
-
-  return mno::req{cdir_meta{
-      .count = cdir_total_count,
-      .size = cdir_size,
-      .offset = cdir_offset,
-  }};
+  return find_eocd_start(r)
+      .fpeek(disk_no)
+      .fpeek(disk)
+      .fpeek(total_count(res.count))
+      .fpeek(yoyo::read_u32(res.size))
+      .fpeek(yoyo::read_u32(res.offset))
+      .map([&](auto) { return res; });
 }
 } // namespace zipline
 
