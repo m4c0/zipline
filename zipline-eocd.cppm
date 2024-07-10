@@ -11,18 +11,18 @@ static constexpr const auto eocd_len = 22;
 
 static constexpr mno::req<void> find_eocd_start(yoyo::reader *r) {
   return r->seekg(-eocd_len, yoyo::seek_mode::end)
-      .fmap([&] {
-        while (true) {
-          auto b = r->read_u32().map(
-              [](auto u32) { return u32 == eocd_magic_number; });
-          if (!b.is_valid() || b == true)
-            return b.map([](auto) {});
-
-          auto res = r->seekg(-sizeof(uint32_t) - 1, yoyo::seek_mode::current);
-          if (!res.is_valid())
-            return res;
-        }
-      })
+      .until_failure(
+          [&] {
+            // Exits when we have a real failure or we found EOCD
+            return r->read_u32()
+                .assert([](auto u32) { return u32 != eocd_magic_number; }, "\1")
+                .fmap([&](auto) {
+                  return r->seekg(-sizeof(uint32_t) - 1,
+                                  yoyo::seek_mode::current);
+                });
+            ;
+          },
+          [&](auto msg) { return msg != "\1"; })
       .trace("searching for end-of-central-directory");
 }
 
