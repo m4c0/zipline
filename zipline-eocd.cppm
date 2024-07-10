@@ -35,6 +35,13 @@ static constexpr auto disk(yoyo::reader *r) {
   return r->read_u16().assert([](auto u16) { return u16 == 0; },
                               "multidisk is not supported");
 }
+static constexpr auto total_count(yoyo::reader *r) {
+  return r->read_u16().fmap([&](auto disk_count) {
+    return r->read_u16().assert(
+        [&](auto total_count) { return total_count == disk_count; },
+        "multidisk is not supported");
+  });
+}
 
 export [[nodiscard]] constexpr auto read_eocd(yoyo::reader *r) {
   unwrap<missing_eocd_error>(find_eocd_start(r));
@@ -42,10 +49,7 @@ export [[nodiscard]] constexpr auto read_eocd(yoyo::reader *r) {
   unwrap<truncated_eocd_error>(disk_no(r));
   unwrap<truncated_eocd_error>(disk(r));
 
-  auto cdir_count_disk = unwrap<truncated_eocd_error>(r->read_u16());
-  auto cdir_total_count = unwrap<truncated_eocd_error>(r->read_u16());
-  if (cdir_count_disk != cdir_total_count)
-    throw multidisk_is_unsupported{};
+  auto cdir_total_count = unwrap<multidisk_is_unsupported>(total_count(r));
 
   auto cdir_size = unwrap<truncated_eocd_error>(r->read_u32());
   auto cdir_offset = unwrap<truncated_eocd_error>(r->read_u32());
