@@ -8,8 +8,10 @@ import yoyo;
 
 namespace zipline {
 constexpr auto list(yoyo::reader &r, auto &&fn) {
-  auto eocd = read_eocd(&r);
-  return yoyo::subreader::seek_and_create(&r, eocd.offset, eocd.size)
+  return read_eocd(&r)
+      .fmap([&](auto &eocd) {
+        return yoyo::subreader::seek_and_create(&r, eocd.offset, eocd.size);
+      })
       .fmap(yoyo::until_eof([&](auto &r) {
         const auto &e = read_cd(&r);
         return fn(e);

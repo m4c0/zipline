@@ -41,11 +41,11 @@ export [[nodiscard]] constexpr auto read_eocd(yoyo::reader *r) {
   auto cdir_size = unwrap<truncated_eocd_error>(r->read_u32());
   auto cdir_offset = unwrap<truncated_eocd_error>(r->read_u32());
 
-  return cdir_meta{
+  return mno::req{cdir_meta{
       .count = cdir_total_count,
       .size = cdir_size,
       .offset = cdir_offset,
-  };
+  }};
 }
 } // namespace zipline
 
@@ -73,6 +73,10 @@ static_assert([] {
   constexpr const auto cdm_offset = 0x42;
 
   auto r = eocd_data;
-  auto cdm = read_eocd(&r);
-  return cdm.count == 1 && cdm.size == cdm_size && cdm.offset == cdm_offset;
+  return read_eocd(&r)
+      .map([](auto &cdm) {
+        return cdm.count == 1 && cdm.size == cdm_size &&
+               cdm.offset == cdm_offset;
+      })
+      .unwrap(false);
 }());
