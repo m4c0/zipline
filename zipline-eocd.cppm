@@ -7,20 +7,29 @@ using namespace traits::ints;
 
 namespace zipline {
 static constexpr const uint32_t eocd_magic_number = 0x06054b50; // PK\5\6
+static constexpr const auto eocd_len = 22;
 
-static constexpr void find_eocd_start(yoyo::reader *r) {
-  constexpr const auto eocd_len = 22;
-  unwrap<missing_eocd_error>(r->seekg(-eocd_len, yoyo::seek_mode::end));
+static constexpr mno::req<void> find_eocd_start(yoyo::reader *r) {
+  return r->seekg(-eocd_len, yoyo::seek_mode::end)
+      .fmap([&] {
+        while (true) {
+          auto u32 = r->read_u32();
+          if (!u32.is_valid())
+            return u32.map([](auto) {});
 
-  constexpr const int sizeof_u32 = sizeof(uint32_t);
-  while (r->read_u32() != eocd_magic_number) {
-    unwrap<missing_eocd_error>(
-        r->seekg(-sizeof_u32 - 1, yoyo::seek_mode::current));
-  }
+          if (u32.unwrap(0) == eocd_magic_number)
+            return mno::req<void>{};
+
+          auto res = r->seekg(-sizeof(uint32_t) - 1, yoyo::seek_mode::current);
+          if (!res.is_valid())
+            return res;
+        }
+      })
+      .trace("searching for end-of-central-directory");
 }
 
 export [[nodiscard]] constexpr auto read_eocd(yoyo::reader *r) {
-  find_eocd_start(r);
+  unwrap<missing_eocd_error>(find_eocd_start(r));
 
   constexpr const uint16_t zip64_magic = 0xFFFF;
   auto disk_no = unwrap<truncated_eocd_error>(r->read_u16());
@@ -65,7 +74,7 @@ static_assert([] {
   constexpr const auto after_pk56_pos = 5 + 4; // PAD + u32
 
   auto r = eocd_data;
-  find_eocd_start(&r);
+  unwrap<int>(find_eocd_start(&r));
   return r.tellg() == after_pk56_pos;
 }());
 static_assert([] {
