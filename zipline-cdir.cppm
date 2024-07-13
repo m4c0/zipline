@@ -5,53 +5,70 @@ import jute;
 import yoyo;
 
 namespace zipline {
-[[nodiscard]] constexpr auto read_cd(yoyo::reader *r) {
-  constexpr const auto cdir_magic = 0x02014b50; // PK\1\2
+static constexpr const auto cdir_magic = 0x02014b50; // PK\1\2
 
-  if (unwrap<truncated_central_directory>(r->read_u32()) != cdir_magic) {
-    throw invalid_central_directory{};
-  }
-  unwrap<truncated_central_directory>(r->read_u16()); // Version made by
-  if (unwrap<truncated_central_directory>(r->read_u16()) >
-      maximum_supported_version) {
-    throw unsupported_zip_version{};
-  }
+[[nodiscard]] static constexpr auto check_cdir(yoyo::reader &r) {
+  return r.read_u32()
+      .assert([](auto v) { return v == cdir_magic; },
+              "invalid central dir magic number")
+      .map([](auto) {});
+}
+[[nodiscard]] static constexpr auto check_version(yoyo::reader &r) {
+  return r.read_u16()
+      .assert([](auto v) { return v <= maximum_supported_version; },
+              "zip version is greater than supported")
+      .map([](auto) {});
+}
+[[nodiscard]] static constexpr auto check_disk(yoyo::reader &r) {
+  return r.read_u16()
+      .assert([](auto v) { return v == 0; }, "multidisk is not supported")
+      .map([](auto) {});
+}
 
-  cdir_entry result;
-  result.flags = unwrap<truncated_central_directory>(r->read_u16());
-  result.method = unwrap<truncated_central_directory>(r->read_u16());
+[[nodiscard]] static constexpr auto read_str(uint16_t &len,
+                                             hai::array<uint8_t> &str) {
+  return [&](yoyo::reader &r) {
+    str.set_capacity(len);
+    return r.read(str.begin(), str.size());
+  };
+}
 
-  unwrap<truncated_central_directory>(r->read_u16()); // Modification time
-  unwrap<truncated_central_directory>(r->read_u16()); // Modification date
+[[nodiscard]] static constexpr auto skip_u16(yoyo::reader &r) {
+  return r.read_u16().map([](auto) {});
+}
+[[nodiscard]] static constexpr auto skip_u32(yoyo::reader &r) {
+  return r.read_u32().map([](auto) {});
+}
 
-  result.crc = unwrap<truncated_central_directory>(r->read_u32());
-  result.compressed_size = unwrap<truncated_central_directory>(r->read_u32());
-  result.uncompressed_size = unwrap<truncated_central_directory>(r->read_u32());
+[[nodiscard]] constexpr auto read_cd(yoyo::subreader &r) {
+  cdir_entry result{};
 
-  auto filename_len = unwrap<truncated_central_directory>(r->read_u16());
-  auto extra_len = unwrap<truncated_central_directory>(r->read_u16());
-  auto comment_len = unwrap<truncated_central_directory>(r->read_u16());
+  uint16_t filename_len{};
+  uint16_t extra_len{};
+  uint16_t comment_len{};
 
-  if (unwrap<truncated_central_directory>(r->read_u16()) != 0) {
-    throw multidisk_is_unsupported{};
-  }
-
-  unwrap<truncated_central_directory>(r->read_u16()); // Internal file attr
-  unwrap<truncated_central_directory>(r->read_u32()); // External file attr
-
-  result.offset = unwrap<truncated_central_directory>(r->read_u32());
-
-  result.filename = hai::array<uint8_t>{filename_len};
-  unwrap<truncated_central_directory>(
-      r->read(result.filename.begin(), filename_len));
-
-  result.extra = hai::array<uint8_t>{extra_len};
-  unwrap<truncated_central_directory>(r->read(result.extra.begin(), extra_len));
-
-  unwrap<truncated_central_directory>(
-      r->seekg(comment_len, yoyo::seek_mode::current));
-
-  return mno::req{traits::move(result)};
+  return mno::req{r}
+      .fpeek(check_cdir)
+      .fpeek(skip_u16) // version made by
+      .fpeek(check_version)
+      .fpeek(yoyo::read_u16(result.flags))
+      .fpeek(yoyo::read_u16(result.method))
+      .fpeek(skip_u16) // modification time
+      .fpeek(skip_u16) // modification date
+      .fpeek(yoyo::read_u32(result.crc))
+      .fpeek(yoyo::read_u32(result.compressed_size))
+      .fpeek(yoyo::read_u32(result.uncompressed_size))
+      .fpeek(yoyo::read_u16(filename_len))
+      .fpeek(yoyo::read_u16(extra_len))
+      .fpeek(yoyo::read_u16(comment_len))
+      .fpeek(check_disk)
+      .fpeek(skip_u16) // internal file attr
+      .fpeek(skip_u32) // external file attr
+      .fpeek(yoyo::read_u32(result.offset))
+      .fpeek(read_str(filename_len, result.filename))
+      .fpeek(read_str(extra_len, result.extra))
+      .fpeek(yoyo::seekg(comment_len, yoyo::seek_mode::current))
+      .map([&](auto &r) { return traits::move(result); });
 }
 } // namespace zipline
 
@@ -88,7 +105,11 @@ static_assert([] {
   };
 
   auto r = cd_data;
-  return read_cd(&r)
+
+  return r.size()
+      .fmap(
+          [&](auto sz) { return yoyo::subreader::seek_and_create(&r, 0, sz); })
+      .fmap([](auto sr) { return read_cd(sr); })
       .map([&](auto &cd) {
         assert(cd.compressed_size, comp_size);
         assert(cd.uncompressed_size, uncomp_size);
