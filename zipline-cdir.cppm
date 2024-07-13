@@ -5,7 +5,7 @@ import jute;
 import yoyo;
 
 namespace zipline {
-constexpr auto read_cd(yoyo::reader *r) {
+[[nodiscard]] constexpr auto read_cd(yoyo::reader *r) {
   constexpr const auto cdir_magic = 0x02014b50; // PK\1\2
 
   if (unwrap<truncated_central_directory>(r->read_u32()) != cdir_magic) {
@@ -51,7 +51,7 @@ constexpr auto read_cd(yoyo::reader *r) {
   unwrap<truncated_central_directory>(
       r->seekg(comment_len, yoyo::seek_mode::current));
 
-  return result;
+  return mno::req{traits::move(result)};
 }
 } // namespace zipline
 
@@ -88,13 +88,16 @@ static_assert([] {
   };
 
   auto r = cd_data;
-  auto cd = read_cd(&r);
-  assert(cd.compressed_size, comp_size);
-  assert(cd.uncompressed_size, uncomp_size);
-  assert(cd.crc, crc);
-  assert(cd.offset, offset);
-  assert(cd.extra.size(), extra_size);
-  if (!filename_matches(cd, filename))
-    throw 0;
-  return r.eof().unwrap(false);
+  return read_cd(&r)
+      .map([&](auto &cd) {
+        assert(cd.compressed_size, comp_size);
+        assert(cd.uncompressed_size, uncomp_size);
+        assert(cd.crc, crc);
+        assert(cd.offset, offset);
+        assert(cd.extra.size(), extra_size);
+        if (!filename_matches(cd, filename))
+          throw 0;
+      })
+      .fmap([&] { return r.eof(); })
+      .unwrap(false);
 }());

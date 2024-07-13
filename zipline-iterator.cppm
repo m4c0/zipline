@@ -12,10 +12,7 @@ constexpr auto list(yoyo::reader &r, auto &&fn) {
       .fmap([&](auto &eocd) {
         return yoyo::subreader::seek_and_create(&r, eocd.offset, eocd.size);
       })
-      .fmap(yoyo::until_eof([&](auto &r) {
-        const auto &e = read_cd(&r);
-        return fn(e);
-      }));
+      .fmap(yoyo::until_eof([&](auto &r) { return read_cd(&r).fmap(fn); }));
 }
 } // namespace zipline
 
