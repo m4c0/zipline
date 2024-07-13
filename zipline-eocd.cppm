@@ -50,7 +50,7 @@ static constexpr auto total_count(uint16_t &count) {
   };
 }
 
-export [[nodiscard]] constexpr auto read_eocd(yoyo::reader *r) {
+[[nodiscard]] constexpr auto read_eocd(yoyo::reader *r) {
   cdir_meta res{};
 
   return find_eocd_start(r)

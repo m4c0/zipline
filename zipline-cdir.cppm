@@ -5,7 +5,7 @@ import jute;
 import yoyo;
 
 namespace zipline {
-export constexpr auto read_cd(yoyo::reader *r) {
+constexpr auto read_cd(yoyo::reader *r) {
   constexpr const auto cdir_magic = 0x02014b50; // PK\1\2
 
   if (unwrap<truncated_central_directory>(r->read_u32()) != cdir_magic) {
