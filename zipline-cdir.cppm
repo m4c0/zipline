@@ -66,8 +66,7 @@ static constexpr const auto cdir_magic = 0x02014b50; // PK\1\2
       .fpeek(skip_u32) // external file attr
       .fpeek(yoyo::read_u32(result.offset))
       .fpeek(read_str(filename_len, result.filename))
-      .fpeek(read_str(extra_len, result.extra))
-      .fpeek(yoyo::seekg(comment_len, yoyo::seek_mode::current))
+      .fpeek(yoyo::seekg(extra_len + comment_len, yoyo::seek_mode::current))
       .map([&](auto &r) { return traits::move(result); })
       .trace("reading central directory");
 }
@@ -97,7 +96,6 @@ static_assert([] {
   constexpr const auto uncomp_size = 0x030e;
   constexpr const auto crc = 0xba4c06baU;
   constexpr const auto offset = 0x42;
-  constexpr const auto extra_size = 0x18;
   constexpr const jute::view filename = "zip.eocd.cpp";
 
   constexpr const auto assert = [](auto res, auto exp) {
@@ -116,7 +114,6 @@ static_assert([] {
         assert(cd.uncompressed_size, uncomp_size);
         assert(cd.crc, crc);
         assert(cd.offset, offset);
-        assert(cd.extra.size(), extra_size);
         if (!filename_matches(cd, filename))
           throw 0;
       })

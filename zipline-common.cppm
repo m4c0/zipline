@@ -20,7 +20,6 @@ export struct cdir_entry {
   uint32_t uncompressed_size{};
   uint32_t offset{};
   hai::array<uint8_t> filename{};
-  hai::array<uint8_t> extra{};
 };
 
 struct zip_exception {};
