@@ -6,13 +6,13 @@ import yoyo;
 
 using namespace traits::ints;
 
-export namespace zipline {
+namespace zipline {
 struct cdir_meta {
   uint16_t count;
   uint32_t size;
   uint32_t offset;
 };
-struct cdir_entry {
+export struct cdir_entry {
   uint16_t flags{};
   uint16_t method{};
   uint32_t crc{};

@@ -7,7 +7,7 @@ import traits;
 import yoyo;
 
 namespace zipline {
-constexpr auto list(yoyo::reader &r, auto &&fn) {
+export constexpr auto list(yoyo::reader &r, auto &&fn) {
   return read_eocd(&r)
       .fmap([&](auto &eocd) {
         return yoyo::subreader::seek_and_create(&r, eocd.offset, eocd.size);
