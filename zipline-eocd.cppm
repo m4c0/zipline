@@ -59,7 +59,8 @@ static constexpr auto total_count(uint16_t &count) {
       .fpeek(total_count(res.count))
       .fpeek(yoyo::read_u32(res.size))
       .fpeek(yoyo::read_u32(res.offset))
-      .map([&](auto) { return res; });
+      .map([&](auto) { return res; })
+      .trace("reading end-of-central directory");
 }
 } // namespace zipline
 

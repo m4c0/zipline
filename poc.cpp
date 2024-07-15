@@ -13,7 +13,7 @@ static auto print(const zipline::cdir_entry &cdir) {
 static void list_zip(const char *name) {
   yoyo::file_reader::open(name)
       .fmap([](auto &r) { return zipline::list(r, print); })
-      .trace(jute::heap{"listing entries of "} + jute::view::unsafe(name))
+      .trace(jute::heap{"processing "} + jute::view::unsafe(name))
       .log_error();
 }
 

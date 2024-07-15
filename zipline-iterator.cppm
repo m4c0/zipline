@@ -12,7 +12,8 @@ export constexpr auto list(yoyo::reader &r, auto &&fn) {
       .fmap([&](auto &eocd) {
         return yoyo::subreader::seek_and_create(&r, eocd.offset, eocd.size);
       })
-      .fmap(yoyo::until_eof([&](auto &r) { return read_cd(r).fmap(fn); }));
+      .fmap(yoyo::until_eof([&](auto &r) { return read_cd(r).fmap(fn); }))
+      .trace("listing entries of ZIP");
 }
 } // namespace zipline
 

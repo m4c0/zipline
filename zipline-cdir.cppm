@@ -68,7 +68,8 @@ static constexpr const auto cdir_magic = 0x02014b50; // PK\1\2
       .fpeek(read_str(filename_len, result.filename))
       .fpeek(read_str(extra_len, result.extra))
       .fpeek(yoyo::seekg(comment_len, yoyo::seek_mode::current))
-      .map([&](auto &r) { return traits::move(result); });
+      .map([&](auto &r) { return traits::move(result); })
+      .trace("reading central directory");
 }
 } // namespace zipline
 
