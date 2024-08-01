@@ -15,13 +15,14 @@ static auto create_zip() {
   };
   unsigned cd_ofs{};
   return yoyo::file_writer::open("out/test.zip")
+      .fpeek([](auto &w) { return zipline::write_lfh(w, cd); })
       .fpeek(
           [&](auto &w) { return w.tellp().map([&](auto p) { cd_ofs = p; }); })
       .fpeek([](auto &w) { return zipline::write_cd(w, cd); })
       .fmap([&](auto &w) {
         return w.tellp().fmap([&](auto p) {
           auto sz = p - cd_ofs;
-          return zipline::write_eocd(w, cd_ofs, sz);
+          return zipline::write_eocd(w, 1, cd_ofs, sz);
         });
       });
 }
