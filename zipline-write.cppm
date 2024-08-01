@@ -6,6 +6,37 @@ import yoyo;
 using namespace traits::ints;
 
 namespace zipline {
+struct crc_table {
+  uint32_t data[256];
+};
+static constexpr const crc_table table = [] {
+  crc_table res{};
+  for (auto n = 0; n < 256; n++) {
+    uint32_t c = n;
+    for (auto k = 0; k < 8; k++) {
+      if (c & 1) {
+        c = 0xdebb20e3 ^ (c >> 1);
+      } else {
+        c >>= 1;
+      }
+    }
+    res.data[n] = c;
+  }
+  return res;
+}();
+
+export uint32_t update_crc(uint32_t crc, unsigned char *buf, unsigned len) {
+  auto c = crc ^ ~0U;
+  for (auto n = 0; n < len; n++) {
+    auto idx = (c ^ buf[n]) & 0xFF;
+    c = table.data[idx] ^ (c >> 8);
+  }
+  return c ^ ~0U;
+}
+export uint32_t start_crc(unsigned char *buf, unsigned len) {
+  return update_crc(0U, buf, len);
+}
+
 export struct cdfh {
   jute::view name;
   uint32_t crc32;
