@@ -8,6 +8,8 @@ import silog;
 import yoyo;
 import zipline;
 
+using namespace jute::literals;
+
 static const char *home = strdup(getenv("HOME"));
 
 static auto print(const zipline::cdir_entry &cdir) {
@@ -23,7 +25,7 @@ static auto print(const zipline::cdir_entry &cdir) {
 static auto list_zip(const char *name) {
   return yoyo::file_reader::open(name)
       .fmap([](auto &r) { return zipline::list(r, print); })
-      .trace(jute::heap{"processing "} + jute::view::unsafe(name));
+      .trace(("processing "_s + jute::view::unsafe(name)).cstr());
 }
 
 static mno::req<void> list_classes(char *line) {

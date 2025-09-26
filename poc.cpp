@@ -5,6 +5,8 @@ import silog;
 import yoyo;
 import zipline;
 
+using namespace jute::literals;
+
 static auto print(const zipline::cdir_entry &cdir) {
   silog::log(silog::info, "%s", cdir.filename.begin());
   return mno::req{};
@@ -13,7 +15,7 @@ static auto print(const zipline::cdir_entry &cdir) {
 static void list_zip(const char *name) {
   yoyo::file_reader::open(name)
       .fmap([](auto &r) { return zipline::list(r, print); })
-      .trace(jute::heap{"processing "} + jute::view::unsafe(name))
+      .trace(("processing "_s + jute::view::unsafe(name)).cstr())
       .log_error();
 }
 
