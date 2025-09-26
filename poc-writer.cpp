@@ -5,7 +5,7 @@
 import hay;
 import zipline;
 
-struct eocd {
+struct __attribute__((packed)) eocd {
   uint32_t magic = 0x06054b50; // PK56
   uint16_t disk = 0;
   uint16_t cd_disk = 0;                  // Disk where CD exist
@@ -13,15 +13,67 @@ struct eocd {
   uint16_t cd_entries = cd_entries_disk; // Total number of CD entries
   uint32_t cd_size = 0;
   uint32_t cd_offset = 0;
-  uint16_t comment_size = 2;
-  uint16_t comment_aka_padding = 0;
+  uint16_t comment_size = 0;
 };
-static_assert(sizeof(eocd) == 24);
+static_assert(sizeof(eocd) == 22);
+
+struct __attribute__((packed)) cdfh {
+  uint32_t magic = 0x02014b50; // PK12
+  uint16_t made_by_version = 20; // 2.0, enables DEFLATE
+  uint16_t min_version = made_by_version;
+  uint16_t flags = 0;
+  uint16_t method = 8; // DEFLATE
+  uint16_t mod_date = 0;
+  uint16_t mod_time = 0;
+  uint32_t crc32 = 0;
+  uint32_t compressed_size = 0;
+  uint32_t uncompressed_size = 0;
+  uint16_t name_size = 0;
+  uint16_t extra_size = 0;
+  uint16_t comment_size = 0;
+  uint16_t disk = 0;
+  uint16_t int_file_attr = 0;
+  uint32_t ext_file_attr = 0;
+  uint32_t rel_offset = 0;
+};
+static_assert(sizeof(cdfh) == 46);
+
+struct __attribute__((packed)) fh {
+  uint32_t magic = 0x04034b50; // PK34
+  uint16_t min_version = 20;
+  uint16_t flags = 0;
+  uint16_t method = 8; // DEFLATE
+  uint16_t mod_date = 0;
+  uint16_t mod_time = 0;
+  uint32_t crc32 = 0;
+  uint32_t compressed_size = 0;
+  uint32_t uncompressed_size = 0;
+  uint16_t name_size = 0;
+  uint16_t extra_size = 0;
+};
+static_assert(sizeof(fh) == 30);
 
 static void create_zip() {
   hay<FILE *, fopen, fclose> f { "out/test.zip", "wb" };
 
-  eocd v {};
+  fh x {
+    .name_size = 5,
+  };
+  fwrite(&x, sizeof(fh), 1, f);
+  fprintf(f, "a.txt");
+
+  cdfh w {
+    .name_size = 5,
+  };
+  uint32_t cd_offset = ftell(f);
+  fwrite(&w, sizeof(cdfh), 1, f);
+  fprintf(f, "a.txt");
+
+  eocd v {
+    .cd_entries_disk = 1,
+    .cd_size = sizeof(w) + 5,
+    .cd_offset = cd_offset,
+  };
   fwrite(&v, sizeof(eocd), 1, f);
 }
 
