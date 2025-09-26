@@ -1,14 +1,14 @@
 #pragma leco tool
 
 import jute;
-import silog;
+import print;
 import yoyo;
 import zipline;
 
 using namespace jute::literals;
 
 static auto print(const zipline::cdir_entry &cdir) {
-  silog::log(silog::info, "%s", cdir.filename.begin());
+  putln(cdir.filename);
   return mno::req{};
 }
 
