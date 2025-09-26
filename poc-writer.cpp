@@ -37,7 +37,7 @@ struct __attribute__((packed)) cdfh {
   uint16_t extra_size = 0;
   uint16_t comment_size = 0;
   uint16_t disk = 0;
-  uint16_t int_file_attr = 0;
+  uint16_t int_file_attr = 0; // 1 for binary files
   uint32_t ext_file_attr = 0;
   uint32_t rel_offset = 0;
 };
@@ -84,5 +84,5 @@ static void create_zip() {
 
 int main() {
   create_zip();
-  return system("unzip -t out/test.zip");
+  return system("unzip -c out/test.zip");
 }
