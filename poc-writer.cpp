@@ -5,6 +5,11 @@
 import hay;
 import zipline;
 
+enum class comp_method : uint16_t {
+  stored = 0,
+  deflated = 8,
+};
+
 struct __attribute__((packed)) eocd {
   uint32_t magic = 0x06054b50; // PK56
   uint16_t disk = 0;
@@ -22,7 +27,7 @@ struct __attribute__((packed)) cdfh {
   uint16_t made_by_version = 20; // 2.0, enables DEFLATE
   uint16_t min_version = made_by_version;
   uint16_t flags = 0;
-  uint16_t method = 8; // DEFLATE
+  comp_method method = comp_method::stored;
   uint16_t mod_date = 0;
   uint16_t mod_time = 0;
   uint32_t crc32 = 0;
@@ -42,7 +47,7 @@ struct __attribute__((packed)) fh {
   uint32_t magic = 0x04034b50; // PK34
   uint16_t min_version = 20;
   uint16_t flags = 0;
-  uint16_t method = 8; // DEFLATE
+  comp_method method = comp_method::stored;
   uint16_t mod_date = 0;
   uint16_t mod_time = 0;
   uint32_t crc32 = 0;
