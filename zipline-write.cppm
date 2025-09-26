@@ -15,7 +15,7 @@ static constexpr const crc_table table = [] {
     uint32_t c = n;
     for (auto k = 0; k < 8; k++) {
       if (c & 1) {
-        c = 0xdebb20e3 ^ (c >> 1);
+        c = 0xedb88320 ^ (c >> 1);
       } else {
         c >>= 1;
       }
