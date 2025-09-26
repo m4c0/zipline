@@ -1,34 +1,31 @@
 #pragma leco tool
+#include <stdio.h>
 #include <stdlib.h>
 
-import silog;
-import yoyo;
+import hay;
 import zipline;
 
-static auto create_zip() {
-  static constexpr zipline::cdfh cd{
-      .name = "test.txt",
-      .crc32 = 0,
-      .offset = 0,
-      .compressed_size = 0,
-      .uncompressed_size = 0,
-  };
-  unsigned cd_ofs{};
-  return yoyo::file_writer::open("out/test.zip")
-      .fpeek([](auto &w) { return zipline::write_lfh(w, cd); })
-      .fpeek(
-          [&](auto &w) { return w.tellp().map([&](auto p) { cd_ofs = p; }); })
-      .fpeek([](auto &w) { return zipline::write_cd(w, cd); })
-      .fmap([&](auto &w) {
-        return w.tellp().fmap([&](auto p) {
-          auto sz = p - cd_ofs;
-          return zipline::write_eocd(w, 1, cd_ofs, sz);
-        });
-      });
+struct eocd {
+  uint32_t magic = 0x06054b50; // PK56
+  uint16_t disk = 0;
+  uint16_t cd_disk = 0;                  // Disk where CD exist
+  uint16_t cd_entries_disk = 0;          // Number of CD entries on disk
+  uint16_t cd_entries = cd_entries_disk; // Total number of CD entries
+  uint32_t cd_size = 0;
+  uint32_t cd_offset = 0;
+  uint16_t comment_size = 2;
+  uint16_t comment_aka_padding = 0;
+};
+static_assert(sizeof(eocd) == 24);
+
+static void create_zip() {
+  hay<FILE *, fopen, fclose> f { "out/test.zip", "wb" };
+
+  eocd v {};
+  fwrite(&v, sizeof(eocd), 1, f);
 }
 
 int main() {
-  return create_zip()
-      .map([] { return system("unzip -t out/test.zip"); })
-      .log_error();
+  create_zip();
+  return system("unzip -t out/test.zip");
 }
