@@ -63,6 +63,9 @@ static_assert(sizeof(fh) == 30);
 struct writer {
   virtual constexpr void write(const void *, unsigned) = 0;
   virtual constexpr uint32_t tell() = 0;
+
+  template<typename T>
+  constexpr void obj_write(const T & t) { write(&t, sizeof(T)); }
 };
 
 struct hay_writer : writer {
@@ -73,49 +76,60 @@ struct hay_writer : writer {
   uint32_t tell() override { return ftell(f); }
 };
 
+struct cdfhfn : cdfh {
+  char filename[0xFFFF];
+};
+static_assert(sizeof(cdfhfn) == sizeof(cdfh) + 0xFFFF);
+
 static void create_zip() {
   hay_writer h {};
 
-  hai::array<cdfh> cd { 2 };
+  hai::array<cdfhfn> cd { 2 };
 
   // Write A
 
-  cd[0] = {
-    .crc32 = zipline::start_crc((unsigned char *)"hello\n", 6),
-    .compressed_size = 6,
-    .uncompressed_size = 6,
-    .name_size = 5,
+  jute::view filename = "this-is-a.txt";
+  jute::view content = "hello wonderful world\n";
+  cd[0] = {{
+    .crc32 = zipline::start_crc((unsigned char *)content.data(), content.size()),
+    .compressed_size = static_cast<uint32_t>(content.size()),
+    .uncompressed_size = static_cast<uint32_t>(content.size()),
+    .name_size = static_cast<uint16_t>(filename.size()),
     .rel_offset = h.tell(),
-  };
-  fh x {
-    .crc32 = zipline::start_crc((unsigned char *)"hello\n", 6),
-    .compressed_size = 6,
-    .uncompressed_size = 6,
-    .name_size = 5,
-  };
-  h.write(&x, sizeof(fh));
-  h.write("a.txt", 5);
-  h.write("hello\n", 6);
+  }};
+  auto p = cd[0].filename;
+  for (auto c : filename) *p++ = c; 
+  h.obj_write(fh {
+    .crc32 = cd[0].crc32,
+    .compressed_size = cd[0].compressed_size,
+    .uncompressed_size = cd[0].uncompressed_size,
+    .name_size = cd[0].name_size,
+  });
+  h.write(filename.data(), filename.size());
+  h.write(content.begin(), content.size());
 
   // Write B
 
-  cd[1] = {
+  cd[1] = {{
     .crc32 = zipline::start_crc((unsigned char *)"world\n", 6),
     .compressed_size = 6,
     .uncompressed_size = 6,
     .name_size = 5,
     .rel_offset = h.tell(),
-  };
-  x.crc32 = zipline::start_crc((unsigned char *)"world\n", 6),
-  h.write(&x, sizeof(fh));
+  }};
+  h.obj_write(fh {
+    .crc32 = cd[1].crc32,
+    .compressed_size = cd[1].compressed_size,
+    .uncompressed_size = cd[1].uncompressed_size,
+    .name_size = cd[1].name_size,
+  });
   h.write("b.txt", 5);
   h.write("world\n", 6);
 
   // Write CD
 
   uint32_t cd_offset = h.tell();
-  h.write(&cd[0], sizeof(cdfh));
-  h.write("a.txt", 5);
+  h.write(&cd[0], sizeof(cdfh) + cd[0].name_size);
 
   h.write(&cd[1], sizeof(cdfh));
   h.write("b.txt", 5);
