@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+import hai;
 import hay;
 import jute;
 import zipline;
@@ -60,22 +61,32 @@ struct __attribute__((packed)) fh {
 static_assert(sizeof(fh) == 30);
 
 struct writer {
-  virtual constexpr bool write(const void *, unsigned) = 0;
-  virtual constexpr int tell() = 0;
+  virtual constexpr void write(const void *, unsigned) = 0;
+  virtual constexpr uint32_t tell() = 0;
 };
 
 struct hay_writer : writer {
   hay<FILE *, fopen, fclose> f { "out/test.zip", "wb" };
 
-  bool write(const void * ptr, unsigned sz) override {
-    return fwrite(ptr, sz, 1, f) == 1;
-  }
-  int tell() override { return ftell(f); }
+  // TODO: treat errors
+  void write(const void * ptr, unsigned sz) override { fwrite(ptr, sz, 1, f); }
+  uint32_t tell() override { return ftell(f); }
 };
 
 static void create_zip() {
   hay_writer h {};
 
+  hai::array<cdfh> cd { 2 };
+
+  // Write A
+
+  cd[0] = {
+    .crc32 = zipline::start_crc((unsigned char *)"hello\n", 6),
+    .compressed_size = 6,
+    .uncompressed_size = 6,
+    .name_size = 5,
+    .rel_offset = h.tell(),
+  };
   fh x {
     .crc32 = zipline::start_crc((unsigned char *)"hello\n", 6),
     .compressed_size = 6,
@@ -86,30 +97,33 @@ static void create_zip() {
   h.write("a.txt", 5);
   h.write("hello\n", 6);
 
-  uint32_t b_ofs = h.tell();
+  // Write B
+
+  cd[1] = {
+    .crc32 = zipline::start_crc((unsigned char *)"world\n", 6),
+    .compressed_size = 6,
+    .uncompressed_size = 6,
+    .name_size = 5,
+    .rel_offset = h.tell(),
+  };
   x.crc32 = zipline::start_crc((unsigned char *)"world\n", 6),
   h.write(&x, sizeof(fh));
   h.write("b.txt", 5);
   h.write("world\n", 6);
 
-  cdfh w {
-    .crc32 = zipline::start_crc((unsigned char *)"hello\n", 6),
-    .compressed_size = 6,
-    .uncompressed_size = 6,
-    .name_size = 5,
-  };
+  // Write CD
+
   uint32_t cd_offset = h.tell();
-  h.write(&w, sizeof(cdfh));
+  h.write(&cd[0], sizeof(cdfh));
   h.write("a.txt", 5);
 
-  w.rel_offset = b_ofs;
-  w.crc32 = zipline::start_crc((unsigned char *)"world\n", 6),
-  h.write(&w, sizeof(cdfh));
+  h.write(&cd[1], sizeof(cdfh));
   h.write("b.txt", 5);
+  uint32_t cd_size = h.tell() - cd_offset;
 
   eocd v {
-    .cd_entries_disk = 2,
-    .cd_size = 2 * (sizeof(w) + 5),
+    .cd_entries_disk = static_cast<uint16_t>(cd.size()),
+    .cd_size = cd_size,
     .cd_offset = cd_offset,
   };
   h.write(&v, sizeof(eocd));
