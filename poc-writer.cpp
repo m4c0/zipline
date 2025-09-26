@@ -68,14 +68,14 @@ static void create_zip() {
     .name_size = 5,
   };
   fwrite(&x, sizeof(fh), 1, f);
-  fprintf(f, "a.txt");
-  fprintf(f, "hello\n");
+  fwrite("a.txt", 5, 1, f);
+  fwrite("hello\n", 6, 1, f);
 
   uint32_t b_ofs = ftell(f);
   x.crc32 = zipline::start_crc((unsigned char *)"world\n", 6),
   fwrite(&x, sizeof(fh), 1, f);
-  fprintf(f, "b.txt");
-  fprintf(f, "world\n");
+  fwrite("b.txt", 5, 1, f);
+  fwrite("world\n", 6, 1, f);
 
   cdfh w {
     .crc32 = zipline::start_crc((unsigned char *)"hello\n", 6),
@@ -85,12 +85,12 @@ static void create_zip() {
   };
   uint32_t cd_offset = ftell(f);
   fwrite(&w, sizeof(cdfh), 1, f);
-  fprintf(f, "a.txt");
+  fwrite("a.txt", 5, 1, f);
 
   w.rel_offset = b_ofs;
   w.crc32 = zipline::start_crc((unsigned char *)"world\n", 6),
   fwrite(&w, sizeof(cdfh), 1, f);
-  fprintf(f, "b.txt");
+  fwrite("b.txt", 5, 1, f);
 
   eocd v {
     .cd_entries_disk = 2,
