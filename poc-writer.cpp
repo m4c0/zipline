@@ -81,66 +81,55 @@ struct cdfhfn : cdfh {
 };
 static_assert(sizeof(cdfhfn) == sizeof(cdfh) + 0xFFFF);
 
+class zipwriter {
+  hai::varray<cdfhfn> m_cd {};
+  writer * m_w;
+
+public:
+  explicit constexpr zipwriter(writer * w) : m_w { w } {}
+  
+  void write_file(jute::view filename, jute::view content) {
+    cdfhfn cd = {{
+      .crc32 = zipline::start_crc((unsigned char *)content.data(), content.size()),
+      .compressed_size = static_cast<uint32_t>(content.size()),
+      .uncompressed_size = static_cast<uint32_t>(content.size()),
+      .name_size = static_cast<uint16_t>(filename.size()),
+      .rel_offset = m_w->tell(),
+    }};
+    auto p = cd.filename;
+    for (auto c : filename) *p++ = c; 
+    m_w->obj_write(fh {
+      .crc32 = cd.crc32,
+      .compressed_size = cd.compressed_size,
+      .uncompressed_size = cd.uncompressed_size,
+      .name_size = cd.name_size,
+    });
+    m_w->write(filename.data(), filename.size());
+    m_w->write(content.begin(), content.size());
+    m_cd.push_back_doubling(cd);
+  }
+
+  void write_cd() {
+    uint32_t cd_offset = m_w->tell();
+    for (auto & cd : m_cd) m_w->write(&cd, sizeof(cdfh) + cd.name_size);
+    uint32_t cd_size = m_w->tell() - cd_offset;
+
+    m_w->obj_write(eocd {
+      .cd_entries_disk = static_cast<uint16_t>(m_cd.size()),
+      .cd_size = cd_size,
+      .cd_offset = cd_offset,
+    });
+  }
+};
+
 static void create_zip() {
   hay_writer h {};
+  zipwriter zip { &h };
 
-  hai::array<cdfhfn> cd { 2 };
-
-  // Write A
-
-  jute::view filename = "this-is-a.txt";
-  jute::view content = "hello wonderful world\n";
-  cd[0] = {{
-    .crc32 = zipline::start_crc((unsigned char *)content.data(), content.size()),
-    .compressed_size = static_cast<uint32_t>(content.size()),
-    .uncompressed_size = static_cast<uint32_t>(content.size()),
-    .name_size = static_cast<uint16_t>(filename.size()),
-    .rel_offset = h.tell(),
-  }};
-  auto p = cd[0].filename;
-  for (auto c : filename) *p++ = c; 
-  h.obj_write(fh {
-    .crc32 = cd[0].crc32,
-    .compressed_size = cd[0].compressed_size,
-    .uncompressed_size = cd[0].uncompressed_size,
-    .name_size = cd[0].name_size,
-  });
-  h.write(filename.data(), filename.size());
-  h.write(content.begin(), content.size());
-
-  // Write B
-
-  cd[1] = {{
-    .crc32 = zipline::start_crc((unsigned char *)"world\n", 6),
-    .compressed_size = 6,
-    .uncompressed_size = 6,
-    .name_size = 5,
-    .rel_offset = h.tell(),
-  }};
-  h.obj_write(fh {
-    .crc32 = cd[1].crc32,
-    .compressed_size = cd[1].compressed_size,
-    .uncompressed_size = cd[1].uncompressed_size,
-    .name_size = cd[1].name_size,
-  });
-  h.write("b.txt", 5);
-  h.write("world\n", 6);
-
-  // Write CD
-
-  uint32_t cd_offset = h.tell();
-  h.write(&cd[0], sizeof(cdfh) + cd[0].name_size);
-
-  h.write(&cd[1], sizeof(cdfh));
-  h.write("b.txt", 5);
-  uint32_t cd_size = h.tell() - cd_offset;
-
-  eocd v {
-    .cd_entries_disk = static_cast<uint16_t>(cd.size()),
-    .cd_size = cd_size,
-    .cd_offset = cd_offset,
-  };
-  h.write(&v, sizeof(eocd));
+  zip.write_file("this-is-a.txt", "hello wonderful world\n");
+  zip.write_file("i-am-b.txt", "this is another file\n");
+  zip.write_file("le-c-filet.txt", "je ne parle par\n");
+  zip.write_cd();
 }
 
 int main() {
