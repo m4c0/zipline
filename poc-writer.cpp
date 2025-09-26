@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 import hay;
+import jute;
 import zipline;
 
 enum class comp_method : uint16_t {
@@ -58,8 +59,22 @@ struct __attribute__((packed)) fh {
 };
 static_assert(sizeof(fh) == 30);
 
-static void create_zip() {
+struct writer {
+  virtual constexpr bool write(const void *, unsigned) = 0;
+  virtual constexpr int tell() = 0;
+};
+
+struct hay_writer : writer {
   hay<FILE *, fopen, fclose> f { "out/test.zip", "wb" };
+
+  bool write(const void * ptr, unsigned sz) override {
+    return fwrite(ptr, sz, 1, f) == 1;
+  }
+  int tell() override { return ftell(f); }
+};
+
+static void create_zip() {
+  hay_writer h {};
 
   fh x {
     .crc32 = zipline::start_crc((unsigned char *)"hello\n", 6),
@@ -67,15 +82,15 @@ static void create_zip() {
     .uncompressed_size = 6,
     .name_size = 5,
   };
-  fwrite(&x, sizeof(fh), 1, f);
-  fwrite("a.txt", 5, 1, f);
-  fwrite("hello\n", 6, 1, f);
+  h.write(&x, sizeof(fh));
+  h.write("a.txt", 5);
+  h.write("hello\n", 6);
 
-  uint32_t b_ofs = ftell(f);
+  uint32_t b_ofs = h.tell();
   x.crc32 = zipline::start_crc((unsigned char *)"world\n", 6),
-  fwrite(&x, sizeof(fh), 1, f);
-  fwrite("b.txt", 5, 1, f);
-  fwrite("world\n", 6, 1, f);
+  h.write(&x, sizeof(fh));
+  h.write("b.txt", 5);
+  h.write("world\n", 6);
 
   cdfh w {
     .crc32 = zipline::start_crc((unsigned char *)"hello\n", 6),
@@ -83,21 +98,21 @@ static void create_zip() {
     .uncompressed_size = 6,
     .name_size = 5,
   };
-  uint32_t cd_offset = ftell(f);
-  fwrite(&w, sizeof(cdfh), 1, f);
-  fwrite("a.txt", 5, 1, f);
+  uint32_t cd_offset = h.tell();
+  h.write(&w, sizeof(cdfh));
+  h.write("a.txt", 5);
 
   w.rel_offset = b_ofs;
   w.crc32 = zipline::start_crc((unsigned char *)"world\n", 6),
-  fwrite(&w, sizeof(cdfh), 1, f);
-  fwrite("b.txt", 5, 1, f);
+  h.write(&w, sizeof(cdfh));
+  h.write("b.txt", 5);
 
   eocd v {
     .cd_entries_disk = 2,
     .cd_size = 2 * (sizeof(w) + 5),
     .cd_offset = cd_offset,
   };
-  fwrite(&v, sizeof(eocd), 1, f);
+  h.write(&v, sizeof(eocd));
 }
 
 int main() {
