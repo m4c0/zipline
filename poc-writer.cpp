@@ -62,21 +62,39 @@ static void create_zip() {
   hay<FILE *, fopen, fclose> f { "out/test.zip", "wb" };
 
   fh x {
+    .crc32 = zipline::start_crc((unsigned char *)"hello\n", 6),
+    .compressed_size = 6,
+    .uncompressed_size = 6,
     .name_size = 5,
   };
   fwrite(&x, sizeof(fh), 1, f);
   fprintf(f, "a.txt");
+  fprintf(f, "hello\n");
+
+  uint32_t b_ofs = ftell(f);
+  x.crc32 = zipline::start_crc((unsigned char *)"world\n", 6),
+  fwrite(&x, sizeof(fh), 1, f);
+  fprintf(f, "b.txt");
+  fprintf(f, "world\n");
 
   cdfh w {
+    .crc32 = zipline::start_crc((unsigned char *)"hello\n", 6),
+    .compressed_size = 6,
+    .uncompressed_size = 6,
     .name_size = 5,
   };
   uint32_t cd_offset = ftell(f);
   fwrite(&w, sizeof(cdfh), 1, f);
   fprintf(f, "a.txt");
 
+  w.rel_offset = b_ofs;
+  w.crc32 = zipline::start_crc((unsigned char *)"world\n", 6),
+  fwrite(&w, sizeof(cdfh), 1, f);
+  fprintf(f, "b.txt");
+
   eocd v {
-    .cd_entries_disk = 1,
-    .cd_size = sizeof(w) + 5,
+    .cd_entries_disk = 2,
+    .cd_size = 2 * (sizeof(w) + 5),
     .cd_offset = cd_offset,
   };
   fwrite(&v, sizeof(eocd), 1, f);
