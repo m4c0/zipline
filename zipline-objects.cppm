@@ -4,13 +4,15 @@ import traits;
 using namespace traits::ints;
 
 export namespace zipline {
+  constexpr const auto eocd_magic = 0x06054b50; // PK56
+
   enum class comp_method : uint16_t {
     stored = 0,
     deflated = 8,
   };
 
   struct __attribute__((packed)) eocd {
-    uint32_t magic = 0x06054b50; // PK56
+    uint32_t magic = eocd_magic;
     uint16_t disk = 0;
     uint16_t cd_disk = 0;                  // Disk where CD exist
     uint16_t cd_entries_disk = 0;          // Number of CD entries on disk
