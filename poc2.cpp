@@ -56,12 +56,6 @@ static void process(jute::view file) {
       return fail("invalid entry in file header");
     if (h.min_version > 20)
       return fail("file contains unsupported version");
-    if (h.crc32 != c.crc32)
-      return fail("crc32 differs between central-directory and file header");
-    if (h.compressed_size != c.compressed_size)
-      return fail("compressed size differs between central-directory and file header");
-    if (h.uncompressed_size != c.uncompressed_size)
-      return fail("uncompressed size differs between central-directory and file header");
     if (h.method != c.method)
       return fail("compression method differs between central-directory and file header");
 
@@ -69,9 +63,30 @@ static void process(jute::view file) {
     if (name != jute::view { name2_buf, h.name_size })
       return fail("file name differs between central-directory and file header");
 
+    auto h_size = c.rel_offset + sizeof(zipline::fh) + h.name_size + h.extra_size;
+    if ((h.flags & 0x8) == 0x8) {
+      if (h.crc32) fail("file with extra data descriptor should not have crc32 in its header");
+      if (h.compressed_size) fail("file with extra data descriptor should not have compressed size in its header");
+      if (h.uncompressed_size) fail("file with extra data descriptor should not have uncompressed size in its header");
+      if (!c.compressed_size) fail("file with extra data descriptor and no compressed size in its central-directory");
+
+      fseek(f, h_size + c.compressed_size, SEEK_SET);
+
+      uint32_t magic {};
+      fread(&magic, sizeof(magic), 1, f);
+      fread(&h.crc32, 12, 1, f);
+    }
+
+    if (h.crc32 != c.crc32)
+      return fail("crc32 differs between central-directory and file header");
+    if (h.compressed_size != c.compressed_size)
+      return fail("compressed size differs between central-directory and file header");
+    if (h.uncompressed_size != c.uncompressed_size)
+      return fail("uncompressed size differs between central-directory and file header");
+
     // callback? add to a list?
     putan(name,
-        c.rel_offset + sizeof(zipline::fh) + h.name_size + h.extra_size,
+        h_size,
         h.compressed_size,
         h.uncompressed_size,
         h.crc32,
