@@ -1,4 +1,6 @@
 #pragma leco tool
+#define MCT_SYSCALL_IMPLEMENTATION
+#include "../mct/mct-syscall.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,7 +12,7 @@ import zipline;
 
 using namespace jute::literals;
 
-static const char *home = strdup(getenv("HOME"));
+static const auto home = mct_syscall_dupenv("HOME");
 
 static auto print(const zipline::cdir_entry &cdir) {
   auto name = jute::view{reinterpret_cast<const char *>(cdir.filename.begin()),

@@ -1,4 +1,6 @@
 #pragma leco test
+#define MCT_SYSCALL_IMPLEMENTATION
+#include "../mct/mct-syscall.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -6,12 +8,15 @@ import hay;
 import jute;
 import mtime;
 import print;
+import traits;
 import zipline;
+
+using namespace traits::ints;
 
 static void fail(jute::view err) { die(err); }
 
 static void process(jute::view file) {
-  hay<FILE *, fopen, fclose> f { "out/test.zip", "rb" };
+  hay<FILE *, mct_syscall_fopen, fclose> f { "out/test.zip", "rb" };
   
   fseek(f, 0, SEEK_END);
   auto fsize = ftell(f);
