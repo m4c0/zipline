@@ -118,7 +118,14 @@ void read(const file_entry & entry) {
   fseek(f, entry.offset, SEEK_SET);
   fread(static_cast<char *>(buffer), entry.compressed_size, 1, f);
 
-  putln(entry.name);
+  switch (entry.method) {
+    case zipline::comp_method::stored:
+      putln(entry.name, " stored");
+      break;
+    case zipline::comp_method::deflated:
+      putln(entry.name, " deflated");
+      break;
+  }
 }
 
 int main() {
