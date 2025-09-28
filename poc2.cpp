@@ -23,7 +23,7 @@ struct file_entry {
   zipline::comp_method method;
 };
 
-static hai::array<file_entry> list(jute::view file) {
+static hai::array<file_entry> list() {
   const auto fail = [](jute::view err) { die(err); return hai::array<file_entry> {}; };
 
   hay<FILE *, mct_syscall_fopen, fclose> f { "out/read-test.zip", "rb" };
@@ -111,10 +111,16 @@ static hai::array<file_entry> list(jute::view file) {
   return res;
 }
 
+void read(const file_entry & entry) {
+  const auto fail = [](jute::view err) { die(err); };
+
+  hay<FILE *, mct_syscall_fopen, fclose> f { "out/read-test.zip", "rb" };
+
+  putln(entry.name);
+}
+
 int main() {
   if (!mtime::of("out/read-test.zip")) system("zip out/read-test.zip *.cpp");
-  for (auto & f : list("out/read-test.zip")) {
-    putan(f.name, "->", f.uncompressed_size, "bytes");
-  }
+  for (auto & f : list()) read(f);
   return 0;
 }
