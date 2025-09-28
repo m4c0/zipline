@@ -112,9 +112,11 @@ static hai::array<file_entry> list() {
 }
 
 void read(const file_entry & entry) {
-  const auto fail = [](jute::view err) { die(err); };
-
   hay<FILE *, mct_syscall_fopen, fclose> f { "out/read-test.zip", "rb" };
+
+  hay<char[]> buffer { entry.compressed_size };
+  fseek(f, entry.offset, SEEK_SET);
+  fread(static_cast<char *>(buffer), entry.compressed_size, 1, f);
 
   putln(entry.name);
 }
