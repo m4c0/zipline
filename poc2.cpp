@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+import hai;
 import hay;
 import jute;
 import mtime;
@@ -13,10 +14,19 @@ import zipline;
 
 using namespace traits::ints;
 
-static void fail(jute::view err) { die(err); }
+struct file_entry {
+  jute::heap name;
+  uint32_t offset;
+  uint32_t compressed_size;
+  uint32_t uncompressed_size;
+  uint32_t crc32;
+  zipline::comp_method method;
+};
 
-static void process(jute::view file) {
-  hay<FILE *, mct_syscall_fopen, fclose> f { "out/test.zip", "rb" };
+static hai::array<file_entry> list(jute::view file) {
+  const auto fail = [](jute::view err) { die(err); return hai::array<file_entry> {}; };
+
+  hay<FILE *, mct_syscall_fopen, fclose> f { "out/read-test.zip", "rb" };
   
   fseek(f, 0, SEEK_END);
   auto fsize = ftell(f);
@@ -31,6 +41,9 @@ static void process(jute::view file) {
     return fail("end-of-central-directory not found");
   if (e.disk != 0 || e.cd_disk != 0)
     return fail("multi-disk is not supported");
+
+  hai::array<file_entry> res { e.cd_entries };
+  file_entry * entry = res.begin();
 
   hay<char[]> name_buf { 0xFFFF };
   hay<char[]> name2_buf { 0xFFFF };
@@ -63,14 +76,14 @@ static void process(jute::view file) {
     if (name != jute::view { name2_buf, h.name_size })
       return fail("file name differs between central-directory and file header");
 
-    auto h_size = c.rel_offset + sizeof(zipline::fh) + h.name_size + h.extra_size;
+    uint32_t file_pos = c.rel_offset + sizeof(zipline::fh) + h.name_size + h.extra_size;
     if ((h.flags & 0x8) == 0x8) {
       if (h.crc32) fail("file with extra data descriptor should not have crc32 in its header");
       if (h.compressed_size) fail("file with extra data descriptor should not have compressed size in its header");
       if (h.uncompressed_size) fail("file with extra data descriptor should not have uncompressed size in its header");
       if (!c.compressed_size) fail("file with extra data descriptor and no compressed size in its central-directory");
 
-      fseek(f, h_size + c.compressed_size, SEEK_SET);
+      fseek(f, file_pos + c.compressed_size, SEEK_SET);
 
       uint32_t magic {};
       fread(&magic, sizeof(magic), 1, f);
@@ -84,20 +97,24 @@ static void process(jute::view file) {
     if (h.uncompressed_size != c.uncompressed_size)
       return fail("uncompressed size differs between central-directory and file header");
 
-    // callback? add to a list?
-    putan(name,
-        h_size,
-        h.compressed_size,
-        h.uncompressed_size,
-        h.crc32,
-        static_cast<int>(h.method));
+    *entry++ = {
+      .name              = jute::heap { name },
+      .offset            = file_pos,
+      .compressed_size   = h.compressed_size,
+      .uncompressed_size = h.uncompressed_size,
+      .method            = h.method,
+    };
 
     offs += sizeof(zipline::cdfh) + c.name_size + c.extra_size + c.comment_size;
   }
+
+  return res;
 }
 
 int main() {
-  if (!mtime::of("out/test.zip")) system("zip out/test.zip *.cpp");
-  process("out/test.zip");
+  if (!mtime::of("out/read-test.zip")) system("zip out/read-test.zip *.cpp");
+  for (auto & f : list("out/read-test.zip")) {
+    putan(f.name, "->", f.uncompressed_size, "bytes");
+  }
   return 0;
 }
