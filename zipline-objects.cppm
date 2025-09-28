@@ -4,6 +4,7 @@ import traits;
 using namespace traits::ints;
 
 export namespace zipline {
+  constexpr const auto cdfh_magic = 0x02014b50; // PK12
   constexpr const auto eocd_magic = 0x06054b50; // PK56
 
   enum class comp_method : uint16_t {
@@ -24,7 +25,7 @@ export namespace zipline {
   static_assert(sizeof(eocd) == 22);
 
   struct __attribute__((packed)) cdfh {
-    uint32_t magic = 0x02014b50; // PK12
+    uint32_t magic = cdfh_magic;
     uint16_t made_by_version = 20; // 2.0, enables DEFLATE
     uint16_t min_version = made_by_version;
     uint16_t flags = 0;
