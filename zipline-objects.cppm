@@ -4,6 +4,7 @@ import traits;
 using namespace traits::ints;
 
 export namespace zipline {
+  constexpr const auto fh_magic   = 0x04034b50; // PK34
   constexpr const auto cdfh_magic = 0x02014b50; // PK12
   constexpr const auto eocd_magic = 0x06054b50; // PK56
 
@@ -46,7 +47,7 @@ export namespace zipline {
   static_assert(sizeof(cdfh) == 46);
 
   struct __attribute__((packed)) fh {
-    uint32_t magic = 0x04034b50; // PK34
+    uint32_t magic = fh_magic;
     uint16_t min_version = 20;
     uint16_t flags = 0;
     comp_method method = comp_method::stored;

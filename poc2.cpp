@@ -28,11 +28,11 @@ static void process(jute::view file) {
     return fail("multi-disk is not supported");
 
   hay<char[]> name_buf { 0xFFFF };
+  hay<char[]> name2_buf { 0xFFFF };
   unsigned offs = 0;
   while (offs < e.cd_size) {
-    fseek(f, e.cd_offset + offs, SEEK_SET);
-
     zipline::cdfh c {};
+    fseek(f, e.cd_offset + offs, SEEK_SET);
     fread(&c, sizeof(zipline::cdfh), 1, f);
     if (c.magic != zipline::cdfh_magic)
       return fail("invalid entry in central-directory");
@@ -42,9 +42,37 @@ static void process(jute::view file) {
       return fail("multi-disk is not supported");
 
     fread(static_cast<char *>(name_buf), c.name_size, 1, f);
-    offs += sizeof(zipline::cdfh) + c.name_size + c.extra_size + c.comment_size;
+    jute::view name { name_buf, c.name_size };
 
-    putln(jute::view { name_buf, c.name_size });
+    zipline::fh h {};
+    fseek(f, c.rel_offset, SEEK_SET);
+    fread(&h, sizeof(zipline::fh), 1, f);
+    if (h.magic != zipline::fh_magic)
+      return fail("invalid entry in file header");
+    if (h.min_version > 20)
+      return fail("file contains unsupported version");
+    if (h.crc32 != c.crc32)
+      return fail("crc32 differs between central-directory and file header");
+    if (h.compressed_size != c.compressed_size)
+      return fail("compressed size differs between central-directory and file header");
+    if (h.uncompressed_size != c.uncompressed_size)
+      return fail("uncompressed size differs between central-directory and file header");
+    if (h.method != c.method)
+      return fail("compression method differs between central-directory and file header");
+
+    fread(static_cast<char *>(name2_buf), h.name_size, 1, f);
+    if (name != jute::view { name2_buf, h.name_size })
+      return fail("file name differs between central-directory and file header");
+
+    // callback? add to a list?
+    putan(name,
+        c.rel_offset + sizeof(zipline::fh) + h.name_size + h.extra_size,
+        h.compressed_size,
+        h.uncompressed_size,
+        h.crc32,
+        static_cast<int>(h.method));
+
+    offs += sizeof(zipline::cdfh) + c.name_size + c.extra_size + c.comment_size;
   }
 }
 
