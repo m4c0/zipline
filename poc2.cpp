@@ -26,18 +26,30 @@ struct file_entry {
   zipline::comp_method method;
 };
 
+class reader : public zipline::reader {
+  hay<FILE *, mct_syscall_fopen, fclose> f { "out/read-test.zip", "rb" };
+
+public:
+  // TODO: check for errors
+  void seek(unsigned ofs) override { fseek(f, ofs, SEEK_SET); }
+  void read(void * ptr, unsigned sz) override { fread(ptr, sz, 1, f); }
+  uint32_t size() override {
+    fseek(f, 0, SEEK_END);
+    return ftell(f);
+  }
+};
+
 static hai::array<file_entry> list() {
   const auto fail = [](jute::view err) { die(err); return hai::array<file_entry> {}; };
 
-  hay<FILE *, mct_syscall_fopen, fclose> f { "out/read-test.zip", "rb" };
-  
-  fseek(f, 0, SEEK_END);
-  auto fsize = ftell(f);
+  reader r {};
 
+  auto fsize = r.size();
+  
   zipline::eocd e {};
   for (int64_t p = fsize - sizeof(zipline::eocd); p >= 0; p--) {
-    fseek(f, p, SEEK_SET);
-    fread(&e, sizeof(zipline::eocd), 1, f);
+    r.seek(p);
+    e = r.obj_read<zipline::eocd>();
     if (e.magic == zipline::eocd_magic) break;
   }
   if (e.magic != zipline::eocd_magic)
@@ -52,9 +64,8 @@ static hai::array<file_entry> list() {
   hay<char[]> name2_buf { 0xFFFF };
   unsigned offs = 0;
   while (offs < e.cd_size) {
-    zipline::cdfh c {};
-    fseek(f, e.cd_offset + offs, SEEK_SET);
-    fread(&c, sizeof(zipline::cdfh), 1, f);
+    r.seek(e.cd_offset + offs);
+    auto c = r.obj_read<zipline::cdfh>();
     if (c.magic != zipline::cdfh_magic)
       return fail("invalid entry in central-directory");
     if (c.min_version > 20)
@@ -62,12 +73,11 @@ static hai::array<file_entry> list() {
     if (c.disk != 0)
       return fail("multi-disk is not supported");
 
-    fread(static_cast<char *>(name_buf), c.name_size, 1, f);
+    r.read(static_cast<char *>(name_buf), c.name_size);
     jute::view name { name_buf, c.name_size };
 
-    zipline::fh h {};
-    fseek(f, c.rel_offset, SEEK_SET);
-    fread(&h, sizeof(zipline::fh), 1, f);
+    r.seek(c.rel_offset);
+    auto h = r.obj_read<zipline::fh>();
     if (h.magic != zipline::fh_magic)
       return fail("invalid entry in file header");
     if (h.min_version > 20)
@@ -75,7 +85,7 @@ static hai::array<file_entry> list() {
     if (h.method != c.method)
       return fail("compression method differs between central-directory and file header");
 
-    fread(static_cast<char *>(name2_buf), h.name_size, 1, f);
+    r.read(static_cast<char *>(name2_buf), h.name_size);
     if (name != jute::view { name2_buf, h.name_size })
       return fail("file name differs between central-directory and file header");
 
@@ -86,11 +96,10 @@ static hai::array<file_entry> list() {
       if (h.uncompressed_size) fail("file with extra data descriptor should not have uncompressed size in its header");
       if (!c.compressed_size) fail("file with extra data descriptor and no compressed size in its central-directory");
 
-      fseek(f, file_pos + c.compressed_size, SEEK_SET);
+      r.seek(file_pos + c.compressed_size);
 
-      uint32_t magic {};
-      fread(&magic, sizeof(magic), 1, f);
-      fread(&h.crc32, 12, 1, f);
+      r.obj_read<uint32_t>();
+      r.read(&h.crc32, 12);
     }
 
     if (h.crc32 != c.crc32)
@@ -115,11 +124,11 @@ static hai::array<file_entry> list() {
 }
 
 void read(const file_entry & entry) {
-  hay<FILE *, mct_syscall_fopen, fclose> f { "out/read-test.zip", "rb" };
+  reader r{};
 
   hay<char[]> buffer { entry.compressed_size };
-  fseek(f, entry.offset, SEEK_SET);
-  fread(static_cast<char *>(buffer), entry.compressed_size, 1, f);
+  r.seek(entry.offset);
+  r.read(static_cast<char *>(buffer), entry.compressed_size);
 
   switch (entry.method) {
     case zipline::comp_method::stored:
