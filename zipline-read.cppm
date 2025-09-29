@@ -114,4 +114,18 @@ namespace zipline {
 
     return res;
   }
+
+  export hai::array<char> read(reader * r, const file_entry & entry) {
+    hai::array<char> buffer { entry.compressed_size };
+    r->seek(entry.offset);
+    r->read(buffer.begin(), buffer.size());
+
+    switch (entry.method) {
+      case zipline::comp_method::stored:
+        return buffer;
+      case zipline::comp_method::deflated:
+        // TODO: deflate
+        return {};
+    }
+  }
 }
