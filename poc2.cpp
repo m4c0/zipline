@@ -12,7 +12,10 @@ import print;
 import traits;
 import zipline;
 
+#ifdef LECO_TARGET_WINDOWS
+// Clashes on non-Windows
 using namespace traits::ints;
+#endif
 
 struct file_entry {
   jute::heap name;
