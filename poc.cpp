@@ -1,26 +1,33 @@
 #pragma leco tool
 
+import hai;
+import jojo;
 import jute;
 import print;
-import yoyo;
 import zipline;
 
-using namespace jute::literals;
+using namespace traits::ints;
 
-static auto print(const zipline::cdir_entry &cdir) {
-  putln(cdir.filename);
-  return mno::req{};
-}
+struct reader : zipline::reader {
+  hai::cstr data;
+  unsigned pos {};
 
-static void list_zip(const char *name) {
-  yoyo::file_reader::open(name)
-      .fmap([](auto &r) { return zipline::list(r, print); })
-      .trace(("processing "_s + jute::view::unsafe(name)).cstr())
-      .log_error();
-}
+  // TODO: check for errors
+  void seek(unsigned ofs) override { pos = ofs; }
+  void read(void * ptr, unsigned sz) override {
+    for (auto i = 0; i < sz; i++) static_cast<char *>(ptr)[i] = data.data()[pos++];
+  }
+  uint32_t size() override { return data.size(); }
+
+  void fail(jute::view err) override { die(err); }
+};
+
 
 int main(int argc, char **argv) {
   for (auto i = 1; i < argc; i++) {
-    list_zip(argv[i]);
+    reader r {};
+    r.data = jojo::read_cstr(jute::view::unsafe(argv[i]));
+
+    for (auto e : zipline::list(&r)) putln(e.name);
   }
 }
