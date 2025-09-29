@@ -123,7 +123,8 @@ void read(const file_entry & entry) {
 
   switch (entry.method) {
     case zipline::comp_method::stored:
-      putln(entry.name, " stored");
+      putln(entry.name);
+      putfn("%.*s", entry.compressed_size, static_cast<char *>(buffer));
       break;
     case zipline::comp_method::deflated:
       putln(entry.name, " deflated");
