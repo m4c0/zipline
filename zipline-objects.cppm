@@ -3,7 +3,7 @@ import traits;
 
 using namespace traits::ints;
 
-export namespace zipline {
+namespace zipline {
   constexpr const auto fh_magic   = 0x04034b50; // PK34
   constexpr const auto cdfh_magic = 0x02014b50; // PK12
   constexpr const auto eocd_magic = 0x06054b50; // PK56

@@ -5,90 +5,69 @@
 #include <stdlib.h>
 #include <string.h>
 
+import jojo;
 import jute;
-import silog;
-import yoyo;
+import print;
 import zipline;
 
 using namespace jute::literals;
 
 static const auto home = mct_syscall_dupenv("HOME");
 
-static auto print(const zipline::cdir_entry &cdir) {
-  auto name = jute::view{reinterpret_cast<const char *>(cdir.filename.begin()),
-                         cdir.filename.size()};
-  if (name.subview(name.size() - 6).after != ".class")
-    return mno::req{};
+class view_reader : public zipline::reader {
+  jute::view data;
+  unsigned pos {};
 
-  printf("%.*s\n", cdir.filename.size() - 6, cdir.filename.begin());
-  return mno::req{};
+public:
+  explicit constexpr view_reader(jute::view v) : data { v } {}
+
+  constexpr void seek(unsigned ofs) override { pos = ofs; }
+  constexpr void read(void * ptr, unsigned sz) override {
+    for (auto i = 0; i < sz; i++) static_cast<char *>(ptr)[i] = data.data()[pos++];
+  }
+  constexpr uint32_t size() override { return data.size(); }
+
+  void fail(jute::view err) override { die(err); }
+};
+
+static auto list_zip(jute::view name) {
+  auto data = jojo::read_cstr(name);
+  view_reader v { data };
+  return zipline::list(&v);
 }
 
-static auto list_zip(const char *name) {
-  return yoyo::file_reader::open(name)
-      .fmap([](auto &r) { return zipline::list(r, print); })
-      .trace(("processing "_s + jute::view::unsafe(name)).cstr());
-}
+static void list_classes(jute::view line) {
+  if (line == "") return;
 
-static mno::req<void> list_classes(char *line) {
-  if (!*line)
-    return {};
+  if (*(line.end() - 1) == '\n') line = line.rsplit('\n').before;
 
-  line[strlen(line) - 1] = 0;
+  auto [lscp, scope] = line.trim().rsplit(':');
+  if (lscp == "") return; // Maven junk
+  if (scope != "compile") return;
 
-  auto tp = strrchr(line, ':');
-  if (!tp) // Maven junk
-    return {};
-
-  if (0 != strcmp(tp + 1, "compile"))
-    return {};
-
-  *tp = 0;
-
-  while (*line == ' ')
-    line++;
-
-  auto *grp_id = line;
-
-  auto *art_id = strchr(line, ':');
-  *art_id++ = 0;
-
-  auto *type = strchr(art_id, ':');
-  *type++ = 0;
-
-  auto *version = strchr(type, ':');
-  *version++ = 0;
+  auto [grp_id, rgrp]    = lscp.split(':');
+  auto [art_id, rart]    = rgrp.split(':');
+  auto [type,   version] = rart.split(':');
 
   // Not entirely sure how deps in this criteria works
-  if (strchr(version, ':'))
-    return {};
+  if (version.index_of(':') >= 0) return;
 
-  while ((line = strchr(line, '.'))) {
-    *line = '/';
+  auto grp = grp_id.cstr();
+  for (auto & c : grp) c = (c == '.') ? '/' : c;
+
+  auto jar = jute::view::unsafe(home) + "/.m2/repository/" + grp + "/" + art_id + "/" + version + "/" + art_id + "-" + version + "." + type;
+  for (auto & e : list_zip(jar.cstr())) {
+    auto [name, ext] = (*e.name).rsplit('.');
+    if (ext == "class") putln(name);
   }
-
-  char jar[10240];
-  snprintf(jar, sizeof(jar),
-           "%5$s/.m2/repository/%1$s/%2$s/%4$s/%2$s-%4$s.%3$s", grp_id, art_id,
-           type, version, home);
-  return list_zip(jar);
 }
 
 int main(int argc, char **argv) try {
   // Takes the result of `mvn dependency:collect` and creates a list of all
   // classes in that classpath (based on some sensible defaults about maven)
   for (auto i = 1; i < argc; i++) {
-    yoyo::file_reader::open(argv[i])
-        .fpeek(yoyo::until_eof([](auto &r) {
-          char buf[10240];
-          return r.readline(buf, sizeof(buf)).fmap([&] {
-            return list_classes(buf);
-          });
-        }))
-        .map([](auto &) {})
-        .log_error([] { throw 1; });
+    jojo::readlines(jute::view::unsafe(argv[i]), list_classes);
   }
-
   return 0;
 } catch (...) {
   return 1;
