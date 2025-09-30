@@ -32,12 +32,12 @@ namespace zipline {
     }
   };
 
-  export hai::array<file_entry> list(reader * r) {
-    const auto fail = [&](jute::view msg) {
-      r->fail(msg);
-      return hai::array<file_entry> {};
-    };
+  [[nodiscard]] auto fail(reader * r, jute::view msg) {
+    r->fail(msg);
+    return hai::array<file_entry> {};
+  };
 
+  export hai::array<file_entry> list(reader * r) {
     auto fsize = r->size();
 
     eocd e {};
@@ -47,9 +47,9 @@ namespace zipline {
       if (e.magic == eocd_magic) break;
     }
     if (e.magic != eocd_magic)
-      return fail("end-of-central-directory not found");
+      return fail(r, "end-of-central-directory not found");
     if (e.disk != 0 || e.cd_disk != 0)
-      return fail("multi-disk is not supported");
+      return fail(r, "multi-disk is not supported");
 
     hai::array<file_entry> res { e.cd_entries };
     file_entry * entry = res.begin();
@@ -61,11 +61,11 @@ namespace zipline {
       r->seek(e.cd_offset + offs);
       auto c = r->obj_read<cdfh>();
       if (c.magic != cdfh_magic)
-        return fail("invalid entry in central-directory");
+        return fail(r, "invalid entry in central-directory");
       if (c.min_version > 20)
-        return fail("file contains unsupported version");
+        return fail(r, "file contains unsupported version");
       if (c.disk != 0)
-        return fail("multi-disk is not supported");
+        return fail(r, "multi-disk is not supported");
 
       r->read(static_cast<char *>(name_buf), c.name_size);
       jute::view name { name_buf, c.name_size };
@@ -73,22 +73,26 @@ namespace zipline {
       r->seek(c.rel_offset);
       auto h = r->obj_read<fh>();
       if (h.magic != fh_magic)
-        return fail("invalid entry in file header");
+        return fail(r, "invalid entry in file header");
       if (h.min_version > 20)
-        return fail("file contains unsupported version");
+        return fail(r, "file contains unsupported version");
       if (h.method != c.method)
-        return fail("compression method differs between central-directory and file header");
+        return fail(r, "compression method differs between central-directory and file header");
 
       r->read(static_cast<char *>(name2_buf), h.name_size);
       if (name != jute::view { name2_buf, h.name_size })
-        return fail("file name differs between central-directory and file header");
+        return fail(r, "file name differs between central-directory and file header");
 
       uint32_t file_pos = c.rel_offset + sizeof(fh) + h.name_size + h.extra_size;
       if ((h.flags & 0x8) == 0x8) {
-        if (h.crc32) fail("file with extra data descriptor should not have crc32 in its header");
-        if (h.compressed_size) fail("file with extra data descriptor should not have compressed size in its header");
-        if (h.uncompressed_size) fail("file with extra data descriptor should not have uncompressed size in its header");
-        if (!c.compressed_size) fail("file with extra data descriptor and no compressed size in its central-directory");
+        if (h.crc32 && (h.crc32 != c.crc32))
+          return fail(r, "file with extra data descriptor does not have consistent crc32 in its header");
+        if (h.compressed_size && (h.compressed_size != c.compressed_size))
+          return fail(r, "file with extra data descriptor does not have consistent compressed size in its header");
+        if (h.uncompressed_size && (h.uncompressed_size != c.uncompressed_size))
+          return fail(r, "file with extra data descriptor does not have consistent uncompressed size in its header");
+        if (!c.compressed_size)
+          return fail(r, "file with extra data descriptor and no compressed size in its central-directory");
 
         r->seek(file_pos + c.compressed_size);
 
@@ -97,11 +101,11 @@ namespace zipline {
       }
 
       if (h.crc32 != c.crc32)
-        return fail("crc32 differs between central-directory and file header");
+        return fail(r, "crc32 differs between central-directory and file header");
       if (h.compressed_size != c.compressed_size)
-        return fail("compressed size differs between central-directory and file header");
+        return fail(r, "compressed size differs between central-directory and file header");
       if (h.uncompressed_size != c.uncompressed_size)
-        return fail("uncompressed size differs between central-directory and file header");
+        return fail(r, "uncompressed size differs between central-directory and file header");
 
       *entry++ = {
         .name              = jute::heap { name },
