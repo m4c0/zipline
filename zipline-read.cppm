@@ -1,8 +1,10 @@
 export module zipline:read;
 import :objects;
+import flate;
 import hai;
 import hay;
 import jute;
+import yoyo;
 import traits;
 
 using namespace traits::ints;
@@ -115,17 +117,27 @@ namespace zipline {
     return res;
   }
 
+  static hai::array<char> deflate(reader * r, const file_entry & e, const hai::array<char> & buffer) {
+    hai::array<char> dec { e.uncompressed_size };
+    yoyo::memreader rd { reinterpret_cast<uint8_t *>(buffer.begin()), buffer.size() };
+    flate::bitstream bs { &rd };
+    flate::huffman_reader::create(&bs)
+      .fmap([&](auto &hr) {
+        return hr.read(reinterpret_cast<uint8_t *>(dec.begin()), dec.size());
+      })
+      .take([&](auto err) { r->fail(err); });
+
+    return dec;
+  }
+
   export hai::array<char> read(reader * r, const file_entry & entry) {
     hai::array<char> buffer { entry.compressed_size };
     r->seek(entry.offset);
     r->read(buffer.begin(), buffer.size());
 
     switch (entry.method) {
-      case zipline::comp_method::stored:
-        return buffer;
-      case zipline::comp_method::deflated:
-        // TODO: deflate
-        return {};
+      case zipline::comp_method::stored:   return buffer;
+      case zipline::comp_method::deflated: return deflate(r, entry, buffer);
     }
   }
 }
