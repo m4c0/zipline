@@ -1,5 +1,6 @@
 export module zipline:write;
 import :objects;
+import flate;
 import jute;
 import hai;
 import traits;
@@ -53,9 +54,12 @@ namespace zipline {
     explicit constexpr zipwriter(writer * w) : m_w { w } {}
 
     void write_file(jute::view filename, jute::view content) {
+      auto compressed = flate::compress(content.begin(), content.size());
+
       cdfhfn cd = {{
+        .method = comp_method::deflated,
         .crc32 = zipline::start_crc((unsigned char *)content.data(), content.size()),
-        .compressed_size = static_cast<uint32_t>(content.size()),
+        .compressed_size = static_cast<uint32_t>(compressed.size()),
         .uncompressed_size = static_cast<uint32_t>(content.size()),
         .name_size = static_cast<uint16_t>(filename.size()),
         .rel_offset = m_w->tell(),
@@ -63,13 +67,14 @@ namespace zipline {
       auto p = cd.filename;
       for (auto c : filename) *p++ = c; 
       m_w->obj_write(fh {
+        .method = cd.method,
         .crc32 = cd.crc32,
         .compressed_size = cd.compressed_size,
         .uncompressed_size = cd.uncompressed_size,
         .name_size = cd.name_size,
       });
       m_w->write(filename.data(), filename.size());
-      m_w->write(content.begin(), content.size());
+      m_w->write(compressed.begin(), compressed.size());
       m_cd.push_back_doubling(cd);
     }
 
