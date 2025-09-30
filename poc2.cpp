@@ -6,6 +6,7 @@
 
 import hai;
 import hay;
+import jojo;
 import jute;
 import mtime;
 import print;
@@ -34,12 +35,18 @@ public:
 
 
 int main() {
-  if (!mtime::of("out/read-test.zip")) system("zip out/read-test.zip *.cpp");
+  system("zip -q out/read-test.zip *.cpp");
 
   reader r {};
   for (auto & f : zipline::list(&r)) {
-    putln(f.name);
-    putln(zipline::read(&r, f));
+    auto expected = jojo::read(f.name);
+    auto got = zipline::read(&r, f);
+    if (expected.size() != got.size()) putln(f.name, ": differs in size: ", expected.size(), " v ", got.size());
+    else for (auto i = 0; i < got.size(); i++) {
+      if (expected[i] == got[i]) continue;
+      putln(f.name, ": differs at byte ", i);
+      break;
+    }
   }
   return 0;
 }
