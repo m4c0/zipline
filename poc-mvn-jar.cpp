@@ -65,6 +65,9 @@ static void list_classes(jute::view line) {
 int main(int argc, char **argv) try {
   // Takes the result of `mvn dependency:collect` and creates a list of all
   // classes in that classpath (based on some sensible defaults about maven)
+  // Example:
+  // mvn dependency:collect -DoutputFile=target/deps
+  // poc-mvn-jar my-java-project/target/deps
   for (auto i = 1; i < argc; i++) {
     jojo::readlines(jute::view::unsafe(argv[i]), list_classes);
   }
