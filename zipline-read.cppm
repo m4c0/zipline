@@ -4,7 +4,6 @@ import flate;
 import hai;
 import hay;
 import jute;
-import yoyo;
 import traits;
 
 using namespace traits::ints;
@@ -123,8 +122,7 @@ namespace zipline {
 
   static hai::array<char> deflate(reader * r, const file_entry & e, const hai::array<char> & buffer) {
     hai::array<char> dec { e.uncompressed_size };
-    yoyo::memreader rd { reinterpret_cast<uint8_t *>(buffer.begin()), buffer.size() };
-    flate::bitstream bs { &rd };
+    flate::bitstream bs { reinterpret_cast<uint8_t *>(buffer.begin()), buffer.size() };
     flate::huffman_reader::create(&bs)
       .fmap([&](auto &hr) {
         return hr.read(reinterpret_cast<uint8_t *>(dec.begin()), dec.size());
