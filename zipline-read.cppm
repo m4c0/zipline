@@ -122,13 +122,7 @@ namespace zipline {
 
   static hai::array<char> deflate(reader * r, const file_entry & e, const hai::array<char> & buffer) {
     hai::array<char> dec { e.uncompressed_size };
-    flate::bitstream bs { reinterpret_cast<uint8_t *>(buffer.begin()), buffer.size() };
-    flate::huffman_reader::create(&bs)
-      .fmap([&](auto &hr) {
-        return hr.read(reinterpret_cast<uint8_t *>(dec.begin()), dec.size());
-      })
-      .take([&](auto err) { r->fail(err); });
-
+    flate::decompresser { buffer.begin(), buffer.size() }.read_all(dec.begin(), dec.size());
     return dec;
   }
 
